@@ -1,0 +1,54 @@
+# Firebase App Hosting configuration (production). Create apphosting.staging.yaml for a staging backend.
+runConfig:
+  minInstances: 0
+  maxInstances: 4
+  concurrency: 80
+  cpu: 1
+  memoryMiB: 512
+
+env:
+  # Public values are inlined at BUILD time into static pages, so they need BUILD availability.
+  - variable: NEXT_PUBLIC_SITE_URL
+    value: https://onemoregame.me
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_CONTACT_EMAIL
+    value: support@onemoregame.me
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_OPERATOR_NAME
+    value: Kartikeya Mishra
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_GOOGLE_PLAY_URL
+    value: ""
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_APP_STORE_URL
+    value: ""
+    availability: [BUILD, RUNTIME]
+  # AdSense: the publisher ID (ca-pub-4557897331416844) is built in for verification (meta tag + /ads.txt).
+  # Switch ads on ONLY after AdSense approves the site and you've created an in-article ad unit:
+  - variable: NEXT_PUBLIC_ADS_ENABLED
+    value: "false"
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_ADSENSE_SLOT_CONTENT
+    value: ""
+    availability: [BUILD, RUNTIME]
+  - variable: DATA_BACKEND
+    value: firestore
+    availability: [RUNTIME]
+  - variable: TRUSTED_PROXY_HOPS
+    value: "1"
+    availability: [RUNTIME]
+  - variable: MAIL_PROVIDER
+    value: resend
+    availability: [RUNTIME]
+  - variable: MAIL_FROM
+    value: "ONE MORE <support@onemoregame.me>"
+    availability: [RUNTIME]
+  # Secrets live in Cloud Secret Manager. Create them with:
+  #   firebase apphosting:secrets:set APP_SECRET
+  #   firebase apphosting:secrets:set RESEND_API_KEY
+  - variable: APP_SECRET
+    secret: APP_SECRET
+    availability: [RUNTIME]
+  - variable: RESEND_API_KEY
+    secret: RESEND_API_KEY
+    availability: [RUNTIME]

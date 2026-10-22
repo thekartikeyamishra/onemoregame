@@ -1,0 +1,33 @@
+import type { Availability } from "@/components/StatusPill";
+
+export interface FaqItem { q: string; a: string; group: "Game" | "Early access" | "Campus Clash" | "Devices & accessibility" | "Privacy" }
+
+export const features: Array<{ title: string; status: Availability; body: string; icon: string }> = [
+  { title: "Quick Play", status: "playtest", icon: "M12 2v20M2 12h20", body: "A single 60-second run in a circular arena. Collect shards, chain combos and dodge hazards. Start instantly in the browser with no download." },
+  { title: "Daily Arena", status: "playtest", icon: "M4 6h16M4 12h16M4 18h10", body: "One shared, seeded layout each day. Everyone faces the same arena, so a score means the same thing for every player." },
+  { title: "Friend challenges", status: "playtest", icon: "M8 12h8M12 8v8", body: "Finish a run, send a link, and your friend plays the exact same seed against your score. No account needed to try it." },
+  { title: "Campus Clash", status: "planned", icon: "M6 4h12v6a6 6 0 0 1-12 0z", body: "Qualifiers, brackets and team formats for schools, colleges and clubs, with an organizer view and a big-screen finals mode." },
+];
+
+export const faqs: FaqItem[] = [
+  { group: "Game", q: "Is ONE MORE playable today?", a: "Yes — it's in an open browser playtest. Anyone can play today's Daily Arena and friend challenges without signing up. Confirm your email to unlock Quick Play, the leaderboard, streaks and saved scores. The full launch comes later." },
+  { group: "Game", q: "What kind of game is it?", a: "A skill-first arcade game built around one-minute runs. You steer an orb inside a circular arena, collect shards to build a combo multiplier, and dodge hazards that break it. The goal is a personal best you can beat with one more try." },
+  { group: "Game", q: "How do you stop cheating?", a: "Every run is recorded as a list of inputs. Our server replays it with the same game engine and only saves the score if the replay produces it exactly and the run took real time. Edited scores are rejected; copied input recordings and slow-motion runs are kept off the leaderboard, and top scores are reviewed." },
+  { group: "Game", q: "Are there power-ups?", a: "Yes: Shield (blocks one hit), Slow-mo (halves hazard speed), Magnet (pulls nearby shards) and Double (doubles points). One appears at a time and vanishes after six seconds, so grabbing it is a decision." },
+  { group: "Game", q: "What are Daily twists?", a: "Each weekday the Daily Arena gets one rule change: Magnet Monday, Turbo Tuesday, Wide Wednesday, Shield Thursday, Frenzy Friday, Swarm Saturday, and Classic Sunday with no twist." },
+  { group: "Game", q: "What is the ghost in challenges?", a: "When you open a friend's challenge, a faint copy of their orb replays their exact run next to you, and the corner shows how far ahead or behind you are." },
+  { group: "Game", q: "Will it cost money?", a: "The core game is planned to be free to play in the browser. If optional purchases are ever added, they will be cosmetic only. Nothing you can buy will change scores, speed or difficulty." },
+  { group: "Game", q: "Are there ads?", a: "There are no ads on the site today. If advertising is added later, it will never appear over gameplay or controls, and it will stay off forms and invitation pages." },
+  { group: "Early access", q: "What happens after I enter my email?", a: "You get a confirmation link that lasts 48 hours. Opening it signs you in, unlocks Quick Play, the Daily Arena leaderboard and streaks, and saves the guest run you chose to keep." },
+  { group: "Early access", q: "Do I get anything for sharing?", a: "No rewards or priority — sharing is just for fun. Share links and challenge links never reveal your email." },
+  { group: "Early access", q: "How do I play on another device?", a: "Go to the Play page and choose \"Sign in\" with the email you confirmed. The link works once and expires in 15 minutes. There are no passwords." },
+  { group: "Early access", q: "What is a streak?", a: "Your streak counts the days in a row you've played the Daily Arena. Missing a single day is forgiven; miss two in a row and it starts again." },
+  { group: "Early access", q: "I didn't get the confirmation email.", a: "Check spam or promotions folders. If it's not there after 15 minutes, submit the form again with the same address. To prevent abuse, a new email can be sent at most every 10 minutes." },
+  { group: "Early access", q: "Is there an age requirement?", a: "You need to be 18 or older to sign up yourself. A parent or guardian can request access on behalf of a child. Campus Clash events at schools will be run through the institution." },
+  { group: "Campus Clash", q: "Can my college sign up for Campus Clash now?", a: "Event registration isn't open yet. Organizers can register interest on the Campus Clash page, and we'll reach out when pilot events are being scheduled. No institutions are partners today." },
+  { group: "Campus Clash", q: "Does Campus Clash involve prizes or entry fees?", a: "Nothing is offered today. Any future prize-bearing or paid event would publish its own rules, eligibility and terms before registration opens." },
+  { group: "Devices & accessibility", q: "Which devices will it support?", a: "The target is current versions of Chrome, Edge, Firefox and Safari on desktop and mobile, with touch, mouse and keyboard controls. Native Android and iOS apps are not available; store listings will be linked only once they exist." },
+  { group: "Devices & accessibility", q: "What accessibility options are planned?", a: "Shapes, not just colors, distinguish shards from hazards. Planned options include reduced motion and particle effects, high-contrast mode, adjustable game speed for practice runs, remappable keys and no required audio cues." },
+  { group: "Privacy", q: "What do you store about me?", a: "For an early-access request: your email, whether you're a player or organizer, your update preference, timestamps and, if you used one, a referral code. Playtesters also have scores, run statistics and an optional leaderboard name. Unconfirmed requests are deleted automatically after 90 days. The privacy notice has the full details." },
+  { group: "Privacy", q: "How do I delete my data?", a: "Email the contact address on the contact page from the address you signed up with and ask for deletion. Every update email also includes a one-click unsubscribe link." },
+];

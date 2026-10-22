@@ -1,0 +1,181 @@
+{
+  "measuredOn": "2026-10-22",
+  "engineVersion": 3,
+  "seedsPerConfig": 200,
+  "movement": {
+    "topSpeedUnitsPerSec": 296,
+    "arenaDiameter": 600,
+    "secondsToCrossArena": 2,
+    "dashDistanceFromStandstill": 85
+  },
+  "twists": {
+    "classic": {
+      "noDash": {
+        "avgScore": 5375,
+        "median": 5310,
+        "p90": 6910,
+        "avgHits": 5.9,
+        "avgSeconds": 42.9,
+        "avgPowerUps": 2.7,
+        "avgShards": 79.1,
+        "comboShare": 88,
+        "nearMissesPerRun": 0
+      },
+      "reactiveDash": {
+        "avgScore": 8025,
+        "median": 8015,
+        "p90": 9755,
+        "avgHits": 3,
+        "avgSeconds": 51.4,
+        "avgPowerUps": 3.2,
+        "avgShards": 97.6,
+        "comboShare": 94.6,
+        "nearMissesPerRun": 5.7
+      }
+    },
+    "magnet": {
+      "noDash": {
+        "avgScore": 5407,
+        "median": 5390,
+        "p90": 6610,
+        "avgHits": 6.2,
+        "avgSeconds": 41.9,
+        "avgPowerUps": 2.7,
+        "avgShards": 84.3,
+        "comboShare": 88.5,
+        "nearMissesPerRun": 0
+      },
+      "reactiveDash": {
+        "avgScore": 8169,
+        "median": 8110,
+        "p90": 9865,
+        "avgHits": 3.2,
+        "avgSeconds": 50.6,
+        "avgPowerUps": 3.3,
+        "avgShards": 104.7,
+        "comboShare": 95.1,
+        "nearMissesPerRun": 5.6
+      }
+    },
+    "turbo": {
+      "noDash": {
+        "avgScore": 5447,
+        "median": 5420,
+        "p90": 6770,
+        "avgHits": 5.7,
+        "avgSeconds": 43.4,
+        "avgPowerUps": 2.8,
+        "avgShards": 79.9,
+        "comboShare": 88.2,
+        "nearMissesPerRun": 0
+      },
+      "reactiveDash": {
+        "avgScore": 8174,
+        "median": 8190,
+        "p90": 9825,
+        "avgHits": 2.7,
+        "avgSeconds": 52.1,
+        "avgPowerUps": 3.3,
+        "avgShards": 98,
+        "comboShare": 95.1,
+        "nearMissesPerRun": 5.8
+      }
+    },
+    "wide": {
+      "noDash": {
+        "avgScore": 5555,
+        "median": 5640,
+        "p90": 7080,
+        "avgHits": 5.9,
+        "avgSeconds": 42.9,
+        "avgPowerUps": 2.7,
+        "avgShards": 80.6,
+        "comboShare": 88.5,
+        "nearMissesPerRun": 0
+      },
+      "reactiveDash": {
+        "avgScore": 8366,
+        "median": 8280,
+        "p90": 10075,
+        "avgHits": 2.9,
+        "avgSeconds": 51.7,
+        "avgPowerUps": 3.3,
+        "avgShards": 99.7,
+        "comboShare": 95.1,
+        "nearMissesPerRun": 5.8
+      }
+    },
+    "shield": {
+      "noDash": {
+        "avgScore": 5725,
+        "median": 5820,
+        "p90": 7130,
+        "avgHits": 5.5,
+        "avgSeconds": 44.1,
+        "avgPowerUps": 2.8,
+        "avgShards": 81.5,
+        "comboShare": 89.4,
+        "nearMissesPerRun": 0
+      },
+      "reactiveDash": {
+        "avgScore": 8186,
+        "median": 8235,
+        "p90": 9795,
+        "avgHits": 2.8,
+        "avgSeconds": 51.9,
+        "avgPowerUps": 3.3,
+        "avgShards": 98.5,
+        "comboShare": 94.9,
+        "nearMissesPerRun": 5.8
+      }
+    },
+    "frenzy": {
+      "noDash": {
+        "avgScore": 5895,
+        "median": 5880,
+        "p90": 7360,
+        "avgHits": 5.5,
+        "avgSeconds": 44.2,
+        "avgPowerUps": 4.4,
+        "avgShards": 81.6,
+        "comboShare": 88.7,
+        "nearMissesPerRun": 0
+      },
+      "reactiveDash": {
+        "avgScore": 8551,
+        "median": 8485,
+        "p90": 10305,
+        "avgHits": 2.9,
+        "avgSeconds": 51.7,
+        "avgPowerUps": 5.3,
+        "avgShards": 98.6,
+        "comboShare": 94.6,
+        "nearMissesPerRun": 5.8
+      }
+    },
+    "swarm": {
+      "noDash": {
+        "avgScore": 4640,
+        "median": 4520,
+        "p90": 6000,
+        "avgHits": 6.9,
+        "avgSeconds": 39.8,
+        "avgPowerUps": 2.6,
+        "avgShards": 73.5,
+        "comboShare": 85.1,
+        "nearMissesPerRun": 0
+      },
+      "reactiveDash": {
+        "avgScore": 7015,
+        "median": 6980,
+        "p90": 8660,
+        "avgHits": 4.3,
+        "avgSeconds": 47.6,
+        "avgPowerUps": 3.1,
+        "avgShards": 89.9,
+        "comboShare": 92.6,
+        "nearMissesPerRun": 6.1
+      }
+    }
+  }
+}

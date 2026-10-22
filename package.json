@@ -1,0 +1,52 @@
+{
+  "name": "one-more",
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "check": "npm run typecheck && npm run lint && npm test && npm run build",
+    "smoke": "node scripts/smoke.mjs",
+    "invites:issue": "tsx --conditions=react-server scripts/issue-invites.ts",
+    "outbox:retry": "tsx --conditions=react-server scripts/retry-verification.ts",
+    "signup:delete": "tsx --conditions=react-server scripts/delete-signup.ts",
+    "metrics": "tsx --conditions=react-server scripts/funnel-metrics.ts",
+    "test:e2e": "npm run build:local && playwright test",
+    "test:rules": "firebase emulators:exec --only firestore --project demo-one-more \"vitest run --config vitest.rules.config.mts\"",
+    "leaderboard:review": "tsx --conditions=react-server scripts/review-leaderboard.ts",
+    "build:local": "cross-env NEXT_PUBLIC_SITE_URL=http://localhost:3100 next build",
+    "stats": "tsx scripts/measure-stats.ts"
+  },
+  "dependencies": {
+    "@fontsource-variable/inter": "^5.3.0",
+    "@fontsource-variable/space-grotesk": "^5.3.0",
+    "firebase-admin": "^14.5.0",
+    "next": "^16.4.2",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "server-only": "^0.0.1",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^5.0.2",
+    "@playwright/test": "^1.64.1",
+    "@types/node": "^22.20.5",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "cross-env": "^10.1.0",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "^16.4.2",
+    "firebase": "^12.19.0",
+    "firebase-tools": "^15.34.0",
+    "tsx": "^4.23.15",
+    "typescript": "^6.0.3",
+    "vitest": "^5.0.5"
+  },
+  "private": true,
+  "engines": {
+    "node": ">=20.9.0"
+  }
+}
