@@ -1,8 +1,6 @@
 rules_version = '2';
-
-// Default deny. Browsers never read or write Firestore directly: every operation goes through
-// trusted server code (Next.js route handlers / server actions using the Admin SDK), which
-// bypasses these rules by design and enforces validation, rate limits and authorization itself.
+// All reads and writes go through the website's server (Admin SDK bypasses these rules).
+// Browsers get no direct access to any collection.
 service cloud.firestore {
   match /databases/{database}/documents {
     match /{document=**} {

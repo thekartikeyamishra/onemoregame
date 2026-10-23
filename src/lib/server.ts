@@ -21,4 +21,7 @@ export function logError(scope: string, e: unknown) {
   // Log only the error class/message; never request bodies, emails or tokens.
   const msg = e instanceof Error ? `${e.name}: ${e.message}` : "unknown";
   console.error(`[${scope}] ${msg.slice(0, 300)}`);
+  if (process.env.NODE_ENV !== "production" && /credential|project id|PERMISSION_DENIED|billing|UNAUTHENTICATED/i.test(msg)) {
+    console.error("[setup] Firestore isn't reachable from this machine. For local development set DATA_BACKEND=memory and MAIL_PROVIDER=console in .env.local (see .env.example), or run `npm run doctor`.");
+  }
 }

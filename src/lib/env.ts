@@ -26,13 +26,24 @@ export function serverConfig(): ServerConfig {
     appSecret = "dev-only-secret-not-for-production-use-000";
   }
 
-  const dataBackend = (env.DATA_BACKEND ?? (isProd ? "firestore" : "memory")) as ServerConfig["dataBackend"];
+  let dataBackend = ((env.DATA_BACKEND ?? "").trim() || (isProd ? "firestore" : "memory")) as ServerConfig["dataBackend"];
   if (!["firestore", "memory"].includes(dataBackend)) throw new ConfigError("DATA_BACKEND is invalid");
   if (dataBackend === "memory" && isProd && !allowDev) throw new ConfigError("memory backend is not allowed in production");
+  // Development only: Firestore requested but nothing tells the Admin SDK which project/credentials to use
+  // (typical when production settings were copied into .env/.env.local). Fall back so `npm run dev` just works.
+  const hasGcpContext = Boolean(env.FIRESTORE_EMULATOR_HOST || env.GOOGLE_CLOUD_PROJECT || env.GCLOUD_PROJECT || env.GOOGLE_APPLICATION_CREDENTIALS);
+  if (!isProd && dataBackend === "firestore" && !hasGcpContext) {
+    console.warn("[setup] DATA_BACKEND=firestore but no GOOGLE_CLOUD_PROJECT / credentials are set — using the in-memory store for local development. Set GOOGLE_CLOUD_PROJECT=onemoregameme and run `gcloud auth application-default login` to use real Firestore locally.");
+    dataBackend = "memory";
+  }
 
-  const mailProvider = (env.MAIL_PROVIDER ?? (isProd ? "resend" : "console")) as ServerConfig["mailProvider"];
+  let mailProvider = ((env.MAIL_PROVIDER ?? "").trim() || (isProd ? "resend" : "console")) as ServerConfig["mailProvider"];
   if (!["resend", "console"].includes(mailProvider)) throw new ConfigError("MAIL_PROVIDER is invalid");
   if (mailProvider === "console" && isProd && !allowDev) throw new ConfigError("console mailer is not allowed in production");
+  if (!isProd && mailProvider === "resend" && !(env.RESEND_API_KEY?.trim() && env.MAIL_FROM?.trim())) {
+    console.warn("[setup] MAIL_PROVIDER=resend without RESEND_API_KEY/MAIL_FROM — printing emails to this terminal instead (development only).");
+    mailProvider = "console";
+  }
 
   cached = {
     appSecret,

@@ -23,8 +23,10 @@ export const viewport: Viewport = { themeColor: "#0a0f1f", colorScheme: "dark" }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <body>
+    // suppressHydrationWarning: browser extensions (recorders, password managers, translators) add attributes to
+    // <html>/<body> before React loads. This ignores attribute differences on these two elements only.
+    <html lang="en" suppressHydrationWarning>
+      <body suppressHydrationWarning>
         <a href="#main" className="skip-link">Skip to content</a>
         <SiteHeader />
         <main id="main">{children}</main>

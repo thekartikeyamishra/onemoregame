@@ -1,57 +1,80 @@
-# ONE MORE — launch website & early-access system
+# kartikeyamishra.info
 
-Public site and open browser playtest of ONE MORE, a browser-first arcade game by Kartikeya Mishra at SEEVE Tech.
+Personal site and studio hub for Kartikeya Mishra: invite-only early access for upcoming apps, a free app cost calculator, long-form writing, client project intake, and Mitra, an animated multilingual site guide.
 
-**Stack:** Next.js 16 (App Router, TypeScript) · Firebase App Hosting · Cloud Firestore (Admin SDK, deny-all rules) · Resend (transactional email) · Remotion (launch film in `film/`).
+Next.js 16 (App Router) · React 19 · TypeScript · Tailwind CSS 4 · Motion · Firebase Admin (Firestore) · Resend · Upstash Redis · optional LLM (Anthropic or any OpenAI-compatible API).
 
-## What's included
-- **Content for search & AdSense**: 8 original guides (`/guides`) built from engine constants and measured stats (`npm run stats`), changelog, editorial policy; Article/FAQ/VideoGame schema
-- **Domain**: https://onemoregame.me (www/http → 308 to apex), support@onemoregame.me, AdSense verification (meta + /ads.txt)
-- **Open play**: anyone plays today's Daily Arena and friend challenges with no sign-up; confirming an email signs you in and unlocks Quick Play, the leaderboard, streaks and named challenges. A guest's run can be saved (claimed) onto their profile/leaderboard on confirmation.
-- **Viral loop**: spoiler-free share text (Wordle-style) with WhatsApp / X / native share; every share creates a challenge link with its own preview image (`/c/:id/opengraph-image`)
-- **Streaks**: consecutive Daily days, one missed day forgiven
-- **Daily twists**: one rule change per weekday (engine-level, deterministic, replay-verified)
-- **Ghost racing**: challenges replay the challenger's verified inputs in lock-step with a live ahead/behind gap (inputs re-verified server-side before they are stored)
-- **Community**: `/community` page, footer channels, and a results-screen prompt shown only after a high moment (never on a first run, once per visit, 7-day snooze). Channels are configured in `src/lib/socials.ts`
-- **Playable game** (`/play`, invite-only): deterministic engine shared by browser and server (`src/game/engine.ts`), Quick Play, Daily Arena (shared seed, resets midnight IST) with leaderboard, synthesized SFX, touch/mouse/keyboard controls, pause, reduce-effects setting
-- **Power-ups**: Shield, Slow-mo, Magnet, Double — spawned deterministically from the seed
-- **Anti-cheat**: server replay of every run (edited scores rejected), single-use server-issued run IDs bound to the session, minimum real-time check, ranked-only wall-clock budget, duplicate-input detection across accounts, per-player and per-IP run limits, engine-version gate, operator review/ban (`npm run leaderboard:review`)
-- **Friend challenges** (`/c/:id`): share a run; anyone can play that exact arena without an account, then gets an early-access CTA crediting the challenger's referral code
-- **Playtest sessions**: invitation acceptance signs you in; other devices use one-time email sign-in links (no passwords); HttpOnly session cookie
-- **Demand metrics**: first run, repeat play, multi-day return, guest challenge runs, "would you come back tomorrow?" feedback (`npm run metrics`)
-- 11 public, indexable pages: `/`, `/how-to-play`, `/campus-clash`, `/early-access`, `/fair-play`, `/faq`, `/about`, `/contact`, `/privacy`, `/terms`, `/cookies`
-- Canvas concept preview (pausable, reduced-motion aware, deterministic seed)
-- Early access: validated request → hashed-ID record → email confirmation (48 h, single active link) → opaque referral link → batch invitations (single-use, 14 days) → one-click unsubscribe
-- Campus Clash organizer-interest form
-- Rate limiting (hashed IPs), honeypots, same-origin checks, generic responses (no account enumeration)
-- TTL-based retention (unconfirmed requests 90 d, outbox 90 d, rate limits ~2 h)
-- SEO: per-page metadata + canonicals, sitemap from a single route list, robots, JSON-LD, OG image, `llms.txt`
-- Security headers + CSP; private token pages are `no-store`, `no-referrer`, `noindex`
-- App-store badges in an honest "Coming soon" state until real URLs are configured (only `play.google.com` / `apps.apple.com` accepted)
-- AdSense integration that renders nothing unless explicitly enabled with a valid publisher ID
-- Operator scripts: issue invites, retry failed verification mail, privacy deletion, funnel metrics
+## What's in it
 
-## Quick start (Windows PowerShell)
+| Area | Where | Notes |
+|---|---|---|
+| Home | `app/page.tsx` | Hero with live mascot, the lab (invite-only projects), calculator teaser, process, writing, FAQ |
+| Early access | `app/early-access`, `app/api/waitlist/*` | Double opt-in, referral links, fraud scoring and penalties, one-click unsubscribe = deletion |
+| Cost calculator | `app/tools/app-cost-calculator`, `lib/cost-model.ts` | Fully client-side, shareable URLs, published methodology |
+| Blog | `content/blog/*.md`, `lib/blog.ts` | Markdown + front matter, TOC, FAQ schema, related posts, RSS, pagination |
+| Projects | `app/work-with-me`, `app/contact`, `app/api/inquiry` | Lead capture with budget and timeline |
+| Mitra | `components/mascot/*`, `lib/mitra/knowledge.ts`, `app/api/chat` | 18 emoji-style expressions, eyes follow the pointer, naps when idle, 7 languages, guided sign-up, AI fallback with hard cost caps |
+| Ads | `components/AdSlot.tsx`, `app/ads.txt`, `lib/site.ts → ads` | Publisher `ca-pub-4557897331416844` and your 3 units configured; labelled, lazy, CLS-safe, content pages only; test ads on previews |
+| SEO | `app/sitemap.ts`, `app/robots.ts`, `app/llms.txt`, `lib/seo.ts`, `components/JsonLd.tsx` | Canonicals, OG images per page, Person/WebSite/BlogPosting/FAQ/Breadcrumb/WebApplication schema |
+| Legal | `app/privacy`, `app/terms`, `app/disclaimer` | Written for DPDP Act + GDPR; have a lawyer review before launch |
+
+The old resume has been removed; `/resume`, `/cv` and `/portfolio` redirect to `/about`.
+
+## Run it locally (Windows / PowerShell)
+
 ```powershell
+# Node 20.9+ (22 LTS recommended)
 npm install
-Copy-Item .env.example .env.local
-# For local dev you can leave .env.local mostly empty: dev defaults to the in-memory store
-# and prints emails (with clickable links) to the terminal.
-npm run dev            # http://localhost:3000
+Copy-Item .env.example .env.local   # fill in what you have; everything is optional locally
+npm run dev                          # http://localhost:3000
 ```
 
-## Quality gates
+Without Firebase configured, sign-ups and forms are accepted and logged to the terminal in development, so you can test the UI.
+
+Before every deploy:
+
 ```powershell
-npm run typecheck; npm run lint; npm test; npm run build
-npx playwright install chromium   # once
-npm run test:e2e                  # builds with build:local, then runs Playwright
-npm run test:rules                # Firestore rules on the emulator (needs Java 11+)
+npm run typecheck
+npm run check:content   # blog quality gate: length, metadata, internal links
+npm run build
 ```
 
-## Docs
-- `docs/DEPLOYMENT.md` — Firebase setup and deployment on Windows
-- `docs/LAUNCH-CHECKLIST.md` — owner actions, security/privacy, SEO/Search Console, AdSense, costs
-- `docs/SEO-ADSENSE-PERFORMANCE.md` — AdSense approval plan, SEO and performance status, Search Console, backlinks
-- `docs/ROADMAP.md` — game integration plan, growth plan, measurement
-- `docs/lighthouse/RESULTS.md` — measured lab results
-- `film/README.md` — launch film
+## Deploy (Vercel)
+
+1. Push this folder to `thekartikeyamishra/kartikeyamishraportfolio` (replace the old create-next-app files).
+2. Import the repo in Vercel. Framework: Next.js; no build settings needed.
+3. Add environment variables from `.env.example`. **Required in production:** `HASH_SALT`, `APP_SECRET`, `CRON_SECRET`, and Firebase credentials.
+4. Domains: keep `www.kartikeyamishra.info` as primary and `kartikeyamishra.info` set to **Redirect to www.kartikeyamishra.info (308)**. The code never redirects between the two; Vercel does. If you ever make the bare domain primary, also set `NEXT_PUBLIC_SITE_URL=https://kartikeyamishra.info`, or canonical URLs will point at a redirect.
+5. Firebase: create a project, enable Firestore (production mode), then deploy rules and indexes:
+   ```powershell
+   npm i -g firebase-tools; firebase login; firebase use <project-id>
+   firebase deploy --only firestore:rules,firestore:indexes
+   ```
+   Create a service account (Project settings → Service accounts → Generate key) and put it in `FIREBASE_SERVICE_ACCOUNT_BASE64`.
+6. Resend: verify your domain, set `RESEND_API_KEY` and `EMAIL_FROM`. This turns on double opt-in (referrals only count after confirmation).
+7. Upstash Redis (free tier is enough): set the two `UPSTASH_*` vars so rate limits and the AI answer cache are shared across serverless instances.
+8. Optional AI: set `AI_API_KEY` (and `AI_PROVIDER`/`AI_MODEL`). Without it Mitra answers from its scripted knowledge only, at zero cost.
+
+Then work through [`docs/LAUNCH_CHECKLIST.md`](docs/LAUNCH_CHECKLIST.md).
+
+## Everyday edits
+
+- **Ads on/off:** set `NEXT_PUBLIC_ADSENSE_CLIENT=off` (all ads) or a slot var to `off` (one unit) in Vercel and redeploy.
+- **Brand, links, availability badge, lab projects, store URLs, ad slots:** `lib/site.ts` (or the env vars it reads).
+- **Store buttons go live:** set `NEXT_PUBLIC_PLAY_STORE_URL` / `NEXT_PUBLIC_APP_STORE_URL` and redeploy. Empty = "Coming soon".
+- **New article:** add `content/blog/my-new-slug.md` (copy an existing post's front matter), run `npm run check:content`, commit. Sitemap, RSS, llms.txt, OG image and related links update automatically.
+- **Mitra answers:** `lib/mitra/knowledge.ts`. Check the `mitra_questions` collection monthly and turn the most-asked unanswered questions into new intents: each one you add is a question that never costs an AI call again.
+- **Cost model rates/FX:** `lib/cost-model.ts`; bump `MODEL_REVIEWED` when you do.
+- **Brand colours:** tokens at the top of `app/globals.css` (Ink `#131A33`, Paper `#F6F7FB`, Indigo `#4338FF`, Marigold `#FFB627`, Slate `#5B6478`, Mint `#0E9F6E`). Fonts: Bricolage Grotesque (display) and Figtree (text), self-hosted in `app/fonts`.
+
+## Data model (Firestore)
+
+| Collection | Contents |
+|---|---|
+| `waitlist/{sha256(canonical email)}` | email, code, interests, role, country, ipHash, confirmed, referredBy, referralStatus, referrals, voided, flagged, risk |
+| `codes/{code}` | `{ id }` lookup for referral links |
+| `stats/waitlist` | totals by interest, role and country: your demand signal per project |
+| `inquiries/*` | project and contact messages |
+| `mitra_questions/*` | anonymised unanswered chat questions with counts |
+
+More detail: [`docs/SECURITY.md`](docs/SECURITY.md), [`docs/PERFORMANCE.md`](docs/PERFORMANCE.md), [`docs/ADSENSE_AND_REVENUE.md`](docs/ADSENSE_AND_REVENUE.md), [`docs/BACKLINKS.md`](docs/BACKLINKS.md).

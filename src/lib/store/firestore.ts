@@ -11,7 +11,11 @@ function firestore(): Firestore {
     initializeApp(
       process.env.FIRESTORE_EMULATOR_HOST
         ? { projectId: process.env.GOOGLE_CLOUD_PROJECT ?? "demo-one-more" }
-        : { credential: applicationDefault() },
+        : {
+            credential: applicationDefault(),
+            // App Hosting infers the project; locally it must come from the environment.
+            ...(process.env.GOOGLE_CLOUD_PROJECT ? { projectId: process.env.GOOGLE_CLOUD_PROJECT } : {}),
+          },
     );
   db = getFirestore(app);
   db.settings({ ignoreUndefinedProperties: true });

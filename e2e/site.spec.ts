@@ -198,3 +198,9 @@ test("guides have article schema, a byline, dates and related links", async ({ p
   await expect(page.locator("h1")).toHaveCount(1);
   expect(await page.locator("article h2").count()).toBeGreaterThanOrEqual(4);
 });
+
+test("health check reports the data store", async ({ request }) => {
+  const r = await request.get("/api/health");
+  expect(r.status()).toBe(200);
+  expect(await r.json()).toMatchObject({ ok: true, backend: "memory" });
+});

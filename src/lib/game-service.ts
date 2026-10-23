@@ -259,14 +259,14 @@ export async function finishRun(
       tx.set(C.players, signupId, next);
       if (dailyId && !unrankedReason && (!daily || result.score > daily.score)) {
         tx.set(C.dailyScores, dailyId, { day: start.day, signupId, displayName: next.displayName, score: result.score, runId, updatedAt: now });
-        invalidateLeaderboard(start.day!); // the player sees their own new score immediately on this instance
+        invalidateLeaderboard(ctx.store, start.day!); // the player sees their own new score immediately on this instance
       }
     }
     let beat: boolean | null = null;
     if (challenge && start.challengeId) {
       beat = result.score > challenge.score;
       tx.update(C.challenges, start.challengeId, { attempts: challenge.attempts + 1, beaten: challenge.beaten + (beat ? 1 : 0) });
-      challengeCache.delete(start.challengeId);
+      challengeCache(ctx.store).delete(start.challengeId);
     }
     const guestDaily = !signupId && start.mode === "daily";
     return {
@@ -297,11 +297,16 @@ export async function createChallenge(ctx: Ctx, signupId: string | null, runId: 
 }
 
 export async function getChallengePublic(store: Store, id: string) {
-  return challengeCache.getOrLoad(id, () => loadChallengePublic(store, id));
+  return challengeCache(store).getOrLoad(id, () => loadChallengePublic(store, id));
 }
 
 /** Challenge cards are effectively immutable (only the attempt counter changes): cache for 30 s per instance. */
-const challengeCache = new TtlCache<Awaited<ReturnType<typeof loadChallengePublic>>>(30_000);
+const challengeCaches = new WeakMap<Store, TtlCache<Awaited<ReturnType<typeof loadChallengePublic>>>>();
+function challengeCache(store: Store) {
+  let c = challengeCaches.get(store);
+  if (!c) challengeCaches.set(store, (c = new TtlCache(30_000)));
+  return c;
+}
 
 async function loadChallengePublic(store: Store, id: string) {
   if (!/^[a-hj-km-np-z2-9]{10}$/.test(id)) return null;
@@ -311,14 +316,19 @@ async function loadChallengePublic(store: Store, id: string) {
 
 type TopRow = { id: string; data: { displayName: string | null; score: number; signupId: string } };
 /** Public top-20 is identical for everyone: cache it briefly per instance (cuts reads under load). */
-const topCache = new TtlCache<TopRow[]>(10_000);
+const topCaches = new WeakMap<Store, TtlCache<TopRow[]>>();
+function topCache(store: Store) {
+  let c = topCaches.get(store);
+  if (!c) topCaches.set(store, (c = new TtlCache<TopRow[]>(10_000)));
+  return c;
+}
 
-export function invalidateLeaderboard(day: string) {
-  topCache.delete(day);
+export function invalidateLeaderboard(store: Store, day: string) {
+  topCache(store).delete(day);
 }
 
 export async function leaderboard(store: Store, day: string, signupId: string | null) {
-  const top = await topCache.getOrLoad(day, () => store.query<TopRow["data"]>(C.dailyScores, {
+  const top = await topCache(store).getOrLoad(day, () => store.query<TopRow["data"]>(C.dailyScores, {
     where: [["day", day]], orderBy: { field: "score", direction: "desc" }, limit: 20,
   }));
   const mine = signupId ? await store.get<{ score: number }>(C.dailyScores, `${day}_${signupId}`) : null;
@@ -359,7 +369,7 @@ export async function claimGuestRun(ctx: Ctx, signupId: string): Promise<number 
     tx.update(C.runs, runId, { signupId, claimedAt: now, ranked: !!dailyId && !player?.leaderboardBanned });
     if (dailyId && !player?.leaderboardBanned && (!daily || run.score > daily.score)) {
       tx.set(C.dailyScores, dailyId, { day: today, signupId, displayName: next.displayName, score: run.score, runId, updatedAt: now });
-      invalidateLeaderboard(today);
+      invalidateLeaderboard(ctx.store, today);
     }
     return run.score;
   });
@@ -384,7 +394,7 @@ export async function reviewDay(store: Store, day: string) {
 export async function banFromLeaderboard(store: Store, signupId: string) {
   const entries = await store.query<{ day: string }>(C.dailyScores, { where: [["signupId", signupId]], limit: 500 });
   await Promise.all(entries.map((e) => store.delete(C.dailyScores, e.id)));
-  for (const e of entries) invalidateLeaderboard(e.data.day);
+  for (const e of entries) invalidateLeaderboard(store, e.data.day);
   await store.transaction(async (tx) => {
     const p = await tx.get<Player>(C.players, signupId);
     tx.set(C.players, signupId, { ...(p ?? { displayName: null, runs: 0, bestScore: 0, firstRunAt: null, lastDay: null, days: 0, played: false, repeated: false, returned: false }), leaderboardBanned: true });

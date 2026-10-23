@@ -64,5 +64,5 @@ Revenue math: revenue = pageviews ÷ 1000 × page RPM. $5,500/month needs ≈ 1.
 - [x] Typecheck, lint, 85 unit tests, 24 e2e tests (including full 60-second verified runs, guest play → claim → leaderboard), production build pass locally
 - [x] Lighthouse lab results recorded (`docs/lighthouse/RESULTS.md`)
 - [ ] Re-run e2e + Lighthouse on staging with Firestore + real email
-- [ ] Set up uptime monitoring and Cloud Logging alerts on 5xx and `[waitlist]` errors
+- [ ] Set up a Google Cloud uptime check on `https://onemoregame.me/api/health` (200 = app + Firestore OK) and Cloud Logging alerts on 5xx and `[waitlist]` / `[game-start]` errors
 - [ ] Budget alert configured
