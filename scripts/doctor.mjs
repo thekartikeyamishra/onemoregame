@@ -31,7 +31,7 @@ else console.log("  • No env files — dev defaults apply (in-memory data, ema
 if (existsSync("one-more/package.json")) bad("A nested one-more/ folder exists (the zip was extracted inside the project)", "Copy the contents of one-more\\ up one level, then delete the nested folder.");
 const backend = env.DATA_BACKEND || "memory";
 if (backend === "firestore") {
-  if (!env.GOOGLE_CLOUD_PROJECT && !env.FIRESTORE_EMULATOR_HOST) console.log("  • DATA_BACKEND=firestore without GOOGLE_CLOUD_PROJECT — dev will use the in-memory store. To use real Firestore locally: GOOGLE_CLOUD_PROJECT=onemoregameme + `gcloud auth application-default login`.");
+  if (!env.GOOGLE_CLOUD_PROJECT && !env.FIRESTORE_EMULATOR_HOST && !env.FIREBASE_SERVICE_ACCOUNT_KEY) console.log("  • DATA_BACKEND=firestore without GOOGLE_CLOUD_PROJECT — dev will use the in-memory store. To use real Firestore locally: GOOGLE_CLOUD_PROJECT=onemoregameme + `gcloud auth application-default login`.");
   else ok(`Firestore backend (${env.FIRESTORE_EMULATOR_HOST ? "emulator" : env.GOOGLE_CLOUD_PROJECT})`);
 } else ok("In-memory data store (local dev)");
 const mail = env.MAIL_PROVIDER || "console";

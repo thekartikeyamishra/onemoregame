@@ -31,7 +31,7 @@ export function serverConfig(): ServerConfig {
   if (dataBackend === "memory" && isProd && !allowDev) throw new ConfigError("memory backend is not allowed in production");
   // Development only: Firestore requested but nothing tells the Admin SDK which project/credentials to use
   // (typical when production settings were copied into .env/.env.local). Fall back so `npm run dev` just works.
-  const hasGcpContext = Boolean(env.FIRESTORE_EMULATOR_HOST || env.GOOGLE_CLOUD_PROJECT || env.GCLOUD_PROJECT || env.GOOGLE_APPLICATION_CREDENTIALS);
+  const hasGcpContext = Boolean(env.FIRESTORE_EMULATOR_HOST || env.GOOGLE_CLOUD_PROJECT || env.GCLOUD_PROJECT || env.GOOGLE_APPLICATION_CREDENTIALS || env.FIREBASE_SERVICE_ACCOUNT_KEY);
   if (!isProd && dataBackend === "firestore" && !hasGcpContext) {
     console.warn("[setup] DATA_BACKEND=firestore but no GOOGLE_CLOUD_PROJECT / credentials are set — using the in-memory store for local development. Set GOOGLE_CLOUD_PROJECT=onemoregameme and run `gcloud auth application-default login` to use real Firestore locally.");
     dataBackend = "memory";

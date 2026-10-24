@@ -28,3 +28,18 @@ describe("server config", () => {
     expect(() => serverConfig()).toThrow(/APP_SECRET/);
   });
 });
+
+import { parseServiceAccount } from "@/lib/store/firestore";
+describe("service account parsing", () => {
+  const key = { project_id: "onemoregameme", client_email: "svc@onemoregameme.iam.gserviceaccount.com", private_key: "-----BEGIN PRIVATE KEY-----\\nabc\\n-----END PRIVATE KEY-----\\n" };
+  it("accepts raw JSON and base64, and restores escaped newlines", () => {
+    const raw = parseServiceAccount(JSON.stringify(key))!;
+    expect(raw.projectId).toBe("onemoregameme");
+    expect(raw.privateKey).toContain("\n");
+    expect(parseServiceAccount(Buffer.from(JSON.stringify(key)).toString("base64"))!.clientEmail).toBe(key.client_email);
+    expect(parseServiceAccount("")).toBeNull();
+  });
+  it("rejects incomplete keys", () => {
+    expect(() => parseServiceAccount(JSON.stringify({ project_id: "x" }))).toThrow(/missing/);
+  });
+});

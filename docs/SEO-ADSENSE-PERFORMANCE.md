@@ -1,6 +1,6 @@
 # SEO, AdSense and performance — what's done and what you do
 
-Domain: **https://onemoregame.me** (canonical). `www.onemoregame.me` and any `http://` request 308-redirect to it (`next.config.ts`). Support email: **support@onemoregame.me**.
+Domain: **https://onemoregame.me** (canonical). `www` → apex and HTTPS redirects are configured in the hosting platform's domain settings (see `docs/DEPLOY-VERCEL.md`), not in code, to avoid redirect loops. Support email: **support@onemoregame.me**.
 
 ## 1. AdSense — avoiding "Low-value content"
 
@@ -38,7 +38,7 @@ Never: click your own ads, ask anyone to click, buy traffic, or place ads near g
 | Broken links | ✅ e2e crawls links from 9 hub pages and fails on any 4xx/5xx |
 | Images / OG | ✅ Vector graphics only; OG images generated as PNG (site-wide + one per challenge) |
 | Mobile | ✅ e2e at 320 px: no horizontal scroll, working menu and forms |
-| HTTPS | ✅ App Hosting serves HTTPS; http → https and www → apex 308 redirects; HSTS header |
+| HTTPS | ✅ Platform-enforced HTTPS and www → apex redirect (domain settings); HSTS header from the app |
 | URL slugs | ✅ Short, lowercase, hyphenated, stable (`/guides/combo-math`) |
 | Search Console | ⏳ Needs your Google account (steps below) |
 | Backlinks | ⏳ Strategy below; links must be earned |

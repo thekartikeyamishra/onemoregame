@@ -1,8 +1,26 @@
-import { getApps, initializeApp, applicationDefault } from "firebase-admin/app";
+import { applicationDefault, cert, getApps, initializeApp, type ServiceAccount } from "firebase-admin/app";
 import { getFirestore, type Firestore } from "firebase-admin/firestore";
 import { AlreadyExistsError, type DocData, type Query, type Store, type Tx } from "./types";
 
 let db: Firestore | null = null;
+
+/**
+ * Service-account credentials for hosts without Google workload identity (e.g. Vercel).
+ * FIREBASE_SERVICE_ACCOUNT_KEY may hold the downloaded JSON key as-is or base64-encoded. Server-only; never NEXT_PUBLIC.
+ */
+export function parseServiceAccount(raw: string | undefined): (ServiceAccount & { projectId: string }) | null {
+  const v = raw?.trim();
+  if (!v) return null;
+  const text = v.startsWith("{") ? v : Buffer.from(v, "base64").toString("utf8");
+  const j = JSON.parse(text) as { project_id?: string; client_email?: string; private_key?: string };
+  if (!j.project_id || !j.client_email || !j.private_key) throw new Error("FIREBASE_SERVICE_ACCOUNT_KEY is missing project_id, client_email or private_key");
+  return { projectId: j.project_id, clientEmail: j.client_email, privateKey: j.private_key.replace(/\\n/g, "\n") };
+}
+
+function serviceAccountOptions() {
+  const sa = parseServiceAccount(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
+  return sa ? { credential: cert(sa), projectId: sa.projectId } : null;
+}
 
 function firestore(): Firestore {
   if (db) return db;
@@ -11,9 +29,9 @@ function firestore(): Firestore {
     initializeApp(
       process.env.FIRESTORE_EMULATOR_HOST
         ? { projectId: process.env.GOOGLE_CLOUD_PROJECT ?? "demo-one-more" }
-        : {
+        : serviceAccountOptions() ?? {
             credential: applicationDefault(),
-            // App Hosting infers the project; locally it must come from the environment.
+            // App Hosting infers the project; elsewhere it must come from the environment.
             ...(process.env.GOOGLE_CLOUD_PROJECT ? { projectId: process.env.GOOGLE_CLOUD_PROJECT } : {}),
           },
     );

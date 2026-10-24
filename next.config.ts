@@ -1,52 +1,68 @@
 import type { NextConfig } from "next";
 
-/**
- * Security headers. The CSP locks down framing, plugins, base URLs and form targets.
- * script-src is intentionally not allow-listed: Google AdSense loads scripts from a large,
- * changing set of Google domains, and a host allow-list would silently break ad serving.
- */
+const adsEnabled = process.env.NEXT_PUBLIC_ADS_ENABLED === "true";
+const isDev = process.env.NODE_ENV !== "production";
+// Production defaults to https://onemoregame.me. Local production builds (e2e, Lighthouse) set NEXT_PUBLIC_SITE_URL=http://localhost:…
+const httpsSite = !isDev && (process.env.NEXT_PUBLIC_SITE_URL || "https://onemoregame.me").startsWith("https://");
+const adHosts = adsEnabled
+  ? " https://pagead2.googlesyndication.com https://*.googlesyndication.com https://*.doubleclick.net https://*.google.com https://*.gstatic.com https://*.adtrafficquality.google"
+  : "";
+
+// 'unsafe-inline' for scripts is needed by Next.js inline bootstrap/JSON-LD without per-request nonces
+// (nonces would force every page to render dynamically). All other directives are locked down.
 const csp = [
-  "base-uri 'self'",
+  "default-src 'self'",
+  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}${adHosts}`,
+  "style-src 'self' 'unsafe-inline'",
+  `img-src 'self' data: blob:${adHosts}`,
+  "font-src 'self' data:",
+  `connect-src 'self'${adHosts}`,
+  `frame-src 'self'${adHosts}`,
+  "media-src 'self'",
   "object-src 'none'",
-  "frame-ancestors 'none'",
+  "base-uri 'self'",
   "form-action 'self'",
-  "upgrade-insecure-requests",
+  "frame-ancestors 'none'",
+  ...(httpsSite ? ["upgrade-insecure-requests"] : []),
 ].join("; ");
 
-const securityHeaders = [
+const security = [
   { key: "Content-Security-Policy", value: csp },
-  { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
+  ...(httpsSite ? [{ key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" }] : []),
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "X-Frame-Options", value: "DENY" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=(), usb=()" },
-  { key: "Cross-Origin-Opener-Policy", value: "same-origin-allow-popups" },
+  { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
+];
+
+// Token-bearing pages: never cache, never leak the URL via Referer, never index.
+const sensitive = [
+  { key: "Cache-Control", value: "private, no-store, max-age=0" },
+  { key: "Referrer-Policy", value: "no-referrer" },
+  { key: "X-Robots-Tag", value: "noindex, nofollow" },
 ];
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   reactStrictMode: true,
+  trailingSlash: false,
+  serverExternalPackages: ["firebase-admin"],
   compress: true,
-  images: { formats: ["image/avif", "image/webp"] },
-  experimental: { optimizePackageImports: ["motion"] },
+  // Host (www ↔ apex) and HTTPS redirects are handled by the hosting platform's domain settings, never here:
+  // doing both creates redirect loops (ERR_TOO_MANY_REDIRECTS). Canonical tags point to https://onemoregame.me.
+
   async headers() {
     return [
-      { source: "/:path*", headers: securityHeaders },
+      { source: "/:path*", headers: security },
+      { source: "/verify", headers: sensitive },
+      { source: "/invite", headers: sensitive },
+      { source: "/unsubscribe", headers: sensitive },
+      { source: "/play/sign-in/confirm", headers: sensitive },
+      { source: "/play", headers: [{ key: "Cache-Control", value: "private, no-store" }] },
+      { source: "/play/sign-in", headers: [{ key: "X-Robots-Tag", value: "noindex" }] },
+      { source: "/c/:id", headers: [{ key: "Cache-Control", value: "private, no-store" }, { key: "X-Robots-Tag", value: "noindex" }] },
       { source: "/api/:path*", headers: [{ key: "X-Robots-Tag", value: "noindex" }] },
-    ];
-  },
-  async redirects() {
-    return [
-      // NOTE: www <-> apex is handled in Vercel → Settings → Domains, never here.
-      // A host redirect in code that disagrees with Vercel's causes ERR_TOO_MANY_REDIRECTS.
-      // The resume was retired; keep old links working.
-      { source: "/resume", destination: "/about", permanent: true },
-      { source: "/cv", destination: "/about", permanent: true },
-      { source: "/portfolio", destination: "/about", permanent: true },
-      { source: "/projects", destination: "/work-with-me", permanent: true },
-      { source: "/hire", destination: "/work-with-me", permanent: true },
-      { source: "/waitlist", destination: "/early-access", permanent: true },
-      { source: "/blog/page/1", destination: "/blog", permanent: true },
     ];
   },
 };
