@@ -15,9 +15,23 @@ if (pkg.name !== "one-more") {
   process.exit(1);
 }
 
-// Files that break ONE MORE when present, because Next.js picks them up automatically.
-const CONFLICTS = ["app", "pages", "src/pages", "postcss.config.js", "postcss.config.mjs", "postcss.config.cjs", "postcss.config.ts",
-  "tailwind.config.js", "tailwind.config.mjs", "tailwind.config.cjs", "tailwind.config.ts", "middleware.ts", "src/middleware.ts"];
+// Everything ONE MORE has at the top level of the folder. Anything else there came from somewhere else
+// (e.g. another project's app/, components/, lib/, postcss/tailwind configs) and can break dev/build.
+const ROOT_ALLOWED = new Set([
+  // ONE MORE files and folders
+  ".github", ".gitignore", ".env.example", "AGENTS.md", "README.md", "apphosting.yaml", "docs", "e2e", "eslint.config.mjs", "film",
+  "firebase.json", "firestore.indexes.json", "firestore.rules", "next.config.ts", "onemore-manifest.json", "package.json",
+  "package-lock.json", "playwright.config.ts", "public", "scripts", "src", "tests", "tests-rules", "tsconfig.json",
+  "vitest.config.mts", "vitest.rules.config.mts",
+  // generated, local or tool files that are fine to have
+  ".git", "node_modules", ".next", ".vercel", ".firebase", ".firebaserc", "next-env.d.ts", "tsconfig.tsbuildinfo", ".e2e",
+  "test-results", "playwright-report", "coverage", ".vscode", ".idea", ".DS_Store", "Thumbs.db", "_foreign_backup",
+  "firebase-debug.log", "firestore-debug.log", "npm-debug.log", ".npmrc", ".nvmrc", ".gitattributes", ".editorconfig", "LICENSE",
+]);
+const isEnvFile = (n) => n === ".env" || n.startsWith(".env.");
+const rootForeign = readdirSync(ROOT).filter((n) => !ROOT_ALLOWED.has(n) && !isEnvFile(n));
+// Also inside src/: folders Next.js would treat specially.
+const CONFLICTS = [...rootForeign, ...["src/pages", "src/middleware.ts"].filter((p) => existsSync(join(ROOT, p)))];
 
 const manifest = existsSync(join(ROOT, "onemore-manifest.json"))
   ? new Set(JSON.parse(readFileSync(join(ROOT, "onemore-manifest.json"), "utf8")).files)
@@ -32,7 +46,7 @@ function walk(dir, out = []) {
   return out;
 }
 
-const conflicts = CONFLICTS.filter((p) => existsSync(join(ROOT, p)));
+const conflicts = CONFLICTS;
 // Files inside ONE MORE's source folders that ONE MORE doesn't ship (e.g. another project's components).
 const extras = manifest ? ["src", "public", "e2e", "tests"].flatMap((d) => walk(join(ROOT, d))).filter((f) => !manifest.has(f)) : [];
 const missing = manifest ? [...manifest].filter((f) => !existsSync(join(ROOT, f))) : [];
@@ -42,7 +56,7 @@ if (!conflicts.length && !extras.length && !missing.length) {
   process.exit(0);
 }
 
-if (conflicts.length) console.log(`✗ Files from another project that override ONE MORE:\n  ${conflicts.join("\n  ")}`);
+if (conflicts.length) console.log(`✗ Files/folders that are not part of ONE MORE (they can override it or break the build):\n  ${conflicts.join("\n  ")}`);
 if (extras.length) console.log(`! Files not part of ONE MORE (${extras.length}):\n  ${extras.slice(0, 30).join("\n  ")}${extras.length > 30 ? "\n  …" : ""}`);
 if (missing.length) console.log(`! ONE MORE files missing (${missing.length}):\n  ${missing.slice(0, 15).join("\n  ")}${missing.length > 15 ? "\n  …" : ""}\n  → extract the latest ONE MORE zip into this folder again.`);
 

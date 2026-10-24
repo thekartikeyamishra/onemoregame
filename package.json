@@ -5,7 +5,7 @@
     "dev": "node scripts/verify-project.mjs && next dev",
     "build": "node scripts/verify-project.mjs && next build",
     "start": "next start",
-    "lint": "eslint .",
+    "lint": "eslint src tests tests-rules e2e scripts next.config.ts playwright.config.ts eslint.config.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "check": "npm run typecheck && npm run lint && npm test && npm run build",
@@ -51,6 +51,6 @@
   },
   "private": true,
   "engines": {
-    "node": ">=20.9.0"
+    "node": "22.x"
   }
 }
