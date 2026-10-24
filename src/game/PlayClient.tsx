@@ -6,7 +6,7 @@ import { CommunityPrompt, markCommunityShown, shouldShowCommunity } from "@/comp
 import { ShareResult, shareText } from "@/components/ShareResult";
 import { WaitlistForm } from "@/components/WaitlistForm";
 import { Sfx } from "./audio";
-import { ENGINE_VERSION, type InputLog, type RunResult, type TwistId } from "./engine";
+import { ENGINE_VERSION, type InputLog, type Rules, type RunResult, type TwistId } from "./engine";
 import dynamic from "next/dynamic";
 import type { RunEnd } from "./GameCanvas";
 
@@ -16,10 +16,16 @@ const GameCanvas = dynamic(() => import("./GameCanvas").then((m) => m.GameCanvas
   loading: () => <div className="game-stage skeleton" aria-busy="true" aria-label="Loading the arena" />,
 });
 
-type Mode = "quick" | "daily" | "challenge";
+type Mode = "quick" | "daily" | "challenge" | "level";
 type TwistInfo = { id: TwistId; name: string; description: string };
-type Start = { runId: string; seed: number; mode: Mode; day: string | null; target: number | null; twist: TwistInfo; ghost: InputLog | null; ghostName: string | null };
-type Saved = { personalBest: number | null; newBest: boolean; target: number | null; beat: boolean | null; ranked: boolean; unrankedReason: string | null; streak: number | null; guest: boolean } | null;
+type LevelInfo = { n: number; name: string; description: string; target: number; stars: readonly number[] };
+export type LevelSummary = LevelInfo & { kind: string; seconds: number };
+export type LevelProgress = { unlocked: number; best: Record<string, number> };
+type LevelResult = { n: number; target: number; stars: number; passed: boolean; unlocked: number; best: number };
+type Start = { runId: string; seed: number; mode: Mode; day: string | null; target: number | null; twist: TwistInfo; ghost: InputLog | null; ghostName: string | null; level: LevelInfo | null; rules: Partial<Rules> };
+type Saved = { personalBest: number | null; newBest: boolean; target: number | null; beat: boolean | null; ranked: boolean; unrankedReason: string | null; streak: number | null; guest: boolean; level: LevelResult | null } | null;
+
+function starCount(stars: readonly number[], score: number) { return stars.filter((t) => score >= t).length; }
 type Phase =
   | { kind: "menu" }
   | { kind: "starting" }
@@ -32,6 +38,9 @@ interface Props {
   challenge?: { id: string; score: number; by: string | null; referralCode: string | null; hasGhost: boolean; twist: TwistInfo } | null;
   /** Today's Daily twist, shown before playing. */
   dailyTwist?: TwistInfo | null;
+  /** Levels mode: the fixed level table and the player's saved progress (guests: level 1 only). */
+  levels?: LevelSummary[];
+  levelProgress?: LevelProgress | null;
 }
 
 async function post<T>(url: string, body: unknown): Promise<{ ok: true; data: T } | { ok: false; error: string }> {
@@ -51,7 +60,7 @@ function writePref(key: string, v: boolean) {
   try { localStorage.setItem(key, v ? "1" : "0"); } catch { /* storage blocked */ }
 }
 
-export function PlayClient({ player, challenge = null, dailyTwist = null }: Props) {
+export function PlayClient({ player, challenge = null, dailyTwist = null, levels = [], levelProgress = null }: Props) {
   const sfx = useMemo(() => new Sfx(), []);
   const [phase, setPhase] = useState<Phase>({ kind: "menu" });
   const [mode, setMode] = useState<Mode>(challenge ? "challenge" : player ? "quick" : "daily");
@@ -63,6 +72,8 @@ export function PlayClient({ player, challenge = null, dailyTwist = null }: Prop
   const [runsThisVisit, setRunsThisVisit] = useState(0);
   const [lbVersion, setLbVersion] = useState(0);
   const keyRef = useRef(0);
+  const [progress, setProgress] = useState<LevelProgress>(levelProgress ?? { unlocked: 1, best: {} });
+  const [selected, setSelected] = useState(Math.min(levels.length || 1, (levelProgress?.unlocked ?? 1)));
 
   useEffect(() => {
     // Load stored preferences after mount (avoids hydration mismatch).
@@ -74,11 +85,12 @@ export function PlayClient({ player, challenge = null, dailyTwist = null }: Prop
   }, []);
   useEffect(() => { sfx.setEnabled(sound); }, [sfx, sound]);
 
-  const start = useCallback(async (m: Mode) => {
+  const start = useCallback(async (m: Mode, level?: number) => {
     sfx.unlock();
     setError(null);
     setPhase({ kind: "starting" });
-    const r = await post<Start>("/api/game/start", { mode: m, challengeId: challenge?.id });
+    if (level) setSelected(level);
+    const r = await post<Start>("/api/game/start", { mode: m, challengeId: challenge?.id, level: m === "level" ? level : undefined });
     if (!r.ok) { setError(r.error); setPhase({ kind: "menu" }); return; }
     keyRef.current++;
     setPhase({ kind: "playing", run: r.data, key: keyRef.current });
@@ -93,15 +105,17 @@ export function PlayClient({ player, challenge = null, dailyTwist = null }: Prop
       if (r.data.personalBest !== null) setBest(r.data.personalBest);
       if (r.data.streak !== null) setStreak(r.data.streak);
       if (run.mode === "daily") setLbVersion((v) => v + 1);
+      const lr = r.data.level;
+      if (lr && player) setProgress((p) => ({ unlocked: Math.max(p.unlocked, lr.unlocked), best: { ...p.best, [lr.n]: Math.max(p.best[lr.n] ?? 0, lr.best) } }));
     }
     setPhase((p) => (p.kind === "result" && p.run.runId === run.runId ? { ...p, saved: r.ok ? r.data : null, saveError: r.ok ? null : r.error } : p));
-  }, []);
+  }, [player]);
 
   // "R" for one more from the result screen.
   useEffect(() => {
     if (phase.kind !== "result") return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key.toLowerCase() === "r" && !(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement)) void start(phase.run.mode);
+      if (e.key.toLowerCase() === "r" && !(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement)) void start(phase.run.mode, phase.run.level?.n);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -110,7 +124,7 @@ export function PlayClient({ player, challenge = null, dailyTwist = null }: Prop
   if (phase.kind === "playing") {
     return (
       <GameCanvas
-        key={phase.key} seed={phase.run.seed} twist={phase.run.twist.id} ghost={phase.run.ghost} ghostName={phase.run.ghostName ?? challenge?.by ?? null}
+        key={phase.key} seed={phase.run.seed} twist={phase.run.twist.id} rules={phase.run.rules} level={phase.run.level} ghost={phase.run.ghost} ghostName={phase.run.ghostName ?? challenge?.by ?? null}
         sfx={sfx} reducedEffects={reduced}
         onEnd={(e) => void onEnd(phase.run, e)} onQuit={() => setPhase({ kind: "menu" })}
       />
@@ -118,7 +132,9 @@ export function PlayClient({ player, challenge = null, dailyTwist = null }: Prop
   }
 
   if (phase.kind === "result") {
-    return <Result phase={phase} best={best} streak={streak} isGuest={!player} challenge={challenge} runsThisVisit={runsThisVisit} onAgain={() => void start(phase.run.mode)} onMenu={() => setPhase({ kind: "menu" })} />;
+    const lr = phase.saved?.level;
+    const next = lr?.passed && lr.n < levels.length && player ? lr.n + 1 : null;
+    return <Result phase={phase} best={best} streak={streak} isGuest={!player} challenge={challenge} runsThisVisit={runsThisVisit} onAgain={() => void start(phase.run.mode, phase.run.level?.n)} onNext={next ? () => void start("level", next) : null} onMenu={() => setPhase({ kind: "menu" })} />;
   }
 
   return (
@@ -131,11 +147,20 @@ export function PlayClient({ player, challenge = null, dailyTwist = null }: Prop
             <p className="muted">Same arena, same hazards. Sixty seconds to beat it.{challenge.hasGhost ? " Their ghost races alongside you, so you'll see exactly where you're ahead or behind." : ""}</p>
             {challenge.twist.id !== "classic" ? <p className="small"><span className="pill pill--soon">{challenge.twist.name}</span> {challenge.twist.description}</p> : null}
           </>
+        ) : !player && mode === "level" ? (
+          <>
+            <p className="eyebrow">Levels · free to try</p>
+            <h2 style={{ fontSize: "var(--step-3)" }}>Level 1</h2>
+            <GuestModeTabs mode={mode} setMode={setMode} />
+            <p className="muted">Thirty hand-tuned arenas, each with a pass mark. Clear one to unlock the next. Try Level 1 now; confirm your email to save progress and keep climbing.</p>
+            {levels[0] ? <LevelCard level={levels[0]} best={null} /> : null}
+          </>
         ) : !player ? (
           <>
             <p className="eyebrow">Daily Arena · free to play</p>
             <h2 style={{ fontSize: "var(--step-3)" }}>Today&apos;s arena</h2>
             <p className="muted">Everyone gets the same arena today (it resets at midnight IST). Sixty seconds. Play now, no sign-up. Confirm your email afterwards to save your score to the leaderboard and unlock Quick Play.</p>
+            <GuestModeTabs mode={mode} setMode={setMode} />
             {dailyTwist ? <TwistBadge twist={dailyTwist} /> : null}
           </>
         ) : (
@@ -145,21 +170,24 @@ export function PlayClient({ player, challenge = null, dailyTwist = null }: Prop
             <div className="mode-tabs" role="group" aria-label="Mode">
               <button type="button" className="btn btn--sm" aria-pressed={mode === "quick"} onClick={() => setMode("quick")}>Quick Play</button>
               <button type="button" className="btn btn--sm" aria-pressed={mode === "daily"} onClick={() => setMode("daily")}>Daily Arena</button>
+              {levels.length ? <button type="button" className="btn btn--sm" aria-pressed={mode === "level"} onClick={() => setMode("level")}>Levels</button> : null}
             </div>
             <p className="muted" style={{ marginTop: "1rem" }}>
-              {mode === "quick" ? "A fresh random arena every run, classic rules. Practice and chase your personal best." : "Today's shared arena (resets at midnight IST). Your best run today goes on the leaderboard."}
+              {mode === "quick" ? "A fresh random arena every run, classic rules. Practice and chase your personal best." : mode === "level" ? `Clear each level's target to unlock the next. ${Math.min(progress.unlocked, levels.length)} of ${levels.length} unlocked.` : "Today's shared arena (resets at midnight IST). Your best run today goes on the leaderboard."}
             </p>
+            {mode === "level" ? <LevelMap levels={levels} progress={progress} selected={selected} onSelect={setSelected} /> : null}
+            {mode === "level" && levels[selected - 1] ? <LevelCard level={levels[selected - 1]} best={progress.best[selected] ?? null} /> : null}
             {mode === "daily" && dailyTwist ? <TwistBadge twist={dailyTwist} /> : null}
           </>
         )}
         {error ? <div className="notice notice--err" role="alert"><strong>Couldn&apos;t start</strong>{error}</div> : null}
-        <button type="button" className="btn btn--primary" style={{ minWidth: 200 }} disabled={phase.kind === "starting"} onClick={() => void start(mode)}>
-          {phase.kind === "starting" ? (<><span className="spinner" aria-hidden="true" /> Loading…</>) : "Play"}
+        <button type="button" className="btn btn--primary" style={{ minWidth: 200 }} disabled={phase.kind === "starting"} onClick={() => void start(mode, mode === "level" ? (player ? selected : 1) : undefined)}>
+          {phase.kind === "starting" ? (<><span className="spinner" aria-hidden="true" /> Loading…</>) : mode === "level" ? `Play Level ${player ? selected : 1}` : "Play"}
         </button>
         <div className="stat-grid">
           {player ? <div className="stat"><b>{best.toLocaleString("en-IN")}</b><span>Personal best</span></div> : null}
           {player ? <div className="stat"><b className={streak > 1 ? "streak" : undefined}>{streak > 0 ? `🔥 ${streak}` : "—"}</b><span>Daily streak</span></div> : null}
-          <div className="stat"><b>60s</b><span>Per run</span></div>
+          {mode === "level" && player ? <div className="stat"><b>★ {levels.reduce((n, l) => n + starCount(l.stars, progress.best[l.n] ?? 0), 0)}/{levels.length * 3}</b><span>Stars</span></div> : <div className="stat"><b>60s</b><span>Per run</span></div>}
         </div>
         <details>
           <summary className="small" style={{ cursor: "pointer" }}>Controls &amp; settings</summary>
@@ -189,17 +217,21 @@ const UNRANKED: Record<string, string> = {
   "leaderboard-banned": "leaderboard access removed under the Fair Play rules",
 };
 
-function Result({ phase, best, streak, isGuest, challenge, runsThisVisit, onAgain, onMenu }: {
-  phase: Extract<Phase, { kind: "result" }>; best: number; streak: number; isGuest: boolean; challenge: Props["challenge"]; runsThisVisit: number; onAgain: () => void; onMenu: () => void;
+function Result({ phase, best, streak, isGuest, challenge, runsThisVisit, onAgain, onNext, onMenu }: {
+  phase: Extract<Phase, { kind: "result" }>; best: number; streak: number; isGuest: boolean; challenge: Props["challenge"]; runsThisVisit: number; onAgain: () => void; onNext: (() => void) | null; onMenu: () => void;
 }) {
   const { result, saved, saveError, run } = phase;
+  const lv = run.level;
+  const lr = saved?.level ?? null;
+  const lvStars = lv ? starCount(lv.stars, result.score) : 0;
+  const lvPassed = lv ? result.score >= lv.target : false;
   const headingRef = useRef<HTMLHeadingElement>(null);
   useEffect(() => { headingRef.current?.focus(); }, []);
-  const target = saved?.target ?? run.target;
+  const target = lv ? null : saved?.target ?? run.target;
   const beat = target !== null ? result.score > target : null;
   const [challengeUrl, setChallengeUrl] = useState<string | null>(null);
   const shownStreak = saved?.streak ?? (isGuest ? null : streak);
-  const highMoment = beat === true || !!saved?.newBest || (shownStreak ?? 0) >= 2;
+  const highMoment = beat === true || !!saved?.newBest || (shownStreak ?? 0) >= 2 || lvStars === 3;
   // Decide once per result screen whether to show the community prompt (reads browser storage, so after mount).
   const [community, setCommunity] = useState<null | "best" | "beat" | "streak" | "regular">(null);
   useEffect(() => {
@@ -221,11 +253,17 @@ function Result({ phase, best, streak, isGuest, challenge, runsThisVisit, onAgai
   return (
     <div className="play-layout">
       <div className="form-card" aria-live="polite">
-        <p className="eyebrow">{run.mode === "daily" ? `Daily Arena · ${run.day}` : run.mode === "challenge" ? "Friend challenge" : "Quick Play"}</p>
+        <p className="eyebrow">{lv ? `Level ${lv.n} · ${lv.name}` : run.mode === "daily" ? `Daily Arena · ${run.day}` : run.mode === "challenge" ? "Friend challenge" : "Quick Play"}</p>
         <h2 ref={headingRef} tabIndex={-1} style={{ fontSize: "var(--step-2)", outline: "none" }}>
-          {beat === true ? "You beat it!" : beat === false ? `${(target! - result.score + 1).toLocaleString("en-IN")} short. One more?` : saved?.newBest ? "New personal best!" : "Run complete"}
+          {lv ? (lvPassed ? (lvStars === 3 ? "Perfect clear! ★★★" : "Level cleared!") : `${(lv.target - result.score).toLocaleString("en-IN")} short of ${lv.target.toLocaleString("en-IN")}. One more?`) : beat === true ? "You beat it!" : beat === false ? `${(target! - result.score + 1).toLocaleString("en-IN")} short. One more?` : saved?.newBest ? "New personal best!" : "Run complete"}
         </h2>
         <p className="big-score">{result.score.toLocaleString("en-IN")}</p>
+        {lv ? (
+          <p className="level-stars" aria-label={`${lvStars} of 3 stars`}>
+            {[0, 1, 2].map((i) => <span key={i} className={i < lvStars ? "on" : undefined} title={`${lv.stars[i].toLocaleString("en-IN")} pts`}>★</span>)}
+            <span className="small muted"> {lvStars < 3 ? `Next star at ${lv.stars[lvStars].toLocaleString("en-IN")}` : "All stars"}</span>
+          </p>
+        ) : null}
         <div className="stat-grid">
           <div className="stat"><b>{result.pickups}</b><span>Shards</span></div>
           <div className="stat"><b>×{result.maxCombo}</b><span>Best combo</span></div>
@@ -236,20 +274,61 @@ function Result({ phase, best, streak, isGuest, challenge, runsThisVisit, onAgai
         </div>
         {saveError ? <div className="notice notice--err" role="alert"><strong>Not recorded</strong>{saveError}</div> : saved === null ? <p className="small muted" role="status">Verifying score…</p> : <p className="small muted">Score verified by replay ✓{run.mode === "daily" ? (saved.ranked ? " · on today's leaderboard if it's your best" : saved.unrankedReason === "guest" ? " · confirm your email below to put it on the leaderboard" : ` · not ranked: ${UNRANKED[saved.unrankedReason ?? ""] ?? "see Fair Play"}`) : ""}</p>}
         <div className="btn-row">
-          <button type="button" className="btn btn--primary" autoFocus onClick={onAgain}>One more <span className="kbd" aria-hidden="true" style={{ marginLeft: 6 }}>R</span></button>
+          {onNext ? <button type="button" className="btn btn--primary" onClick={onNext}>Next: Level {lr!.n + 1} →</button> : null}
+          <button type="button" className={onNext ? "btn" : "btn btn--primary"} autoFocus onClick={onAgain}>{lv && lvPassed ? "Replay for stars" : "One more"} <span className="kbd" aria-hidden="true" style={{ marginLeft: 6 }}>R</span></button>
           {!isGuest ? <button type="button" className="btn" onClick={onMenu}>Modes</button> : null}
         </div>
         {saved ? (
           <ShareResult
-            text={shareText({ mode: run.mode, day: run.day, twist: run.twist.id === "classic" ? null : run.twist.name, score: result.score, pickups: result.pickups, maxCombo: result.maxCombo, powerUps: result.powerUps, streak: shownStreak, beat, target })}
+            text={shareText({ mode: run.mode, day: run.day, level: lv ? { n: lv.n, name: lv.name, stars: lvStars, passed: lvPassed } : null, twist: run.twist.id === "classic" ? null : run.twist.name, score: result.score, pickups: result.pickups, maxCombo: result.maxCombo, powerUps: result.powerUps, streak: shownStreak, beat, target })}
             url={challengeUrl}
             onNeedUrl={makeChallenge}
           />
         ) : null}
-        {isGuest && saved ? <GuestClaim runId={run.runId} score={result.score} canRank={run.mode === "daily" && saved.unrankedReason === "guest" && result.score > 0} referralCode={challenge?.referralCode ?? null} /> : null}
+        {isGuest && saved ? <GuestClaim runId={run.runId} score={result.score} canRank={run.mode === "daily" && saved.unrankedReason === "guest" && result.score > 0} levelCleared={lv && lvPassed ? lv.n : null} referralCode={challenge?.referralCode ?? null} /> : null}
         {community ? <CommunityPrompt reason={community} /> : null}
         {runsThisVisit === 1 || runsThisVisit === 3 ? <Feedback runId={run.runId} /> : null}
       </div>
+    </div>
+  );
+}
+
+function GuestModeTabs({ mode, setMode }: { mode: Mode; setMode: (m: Mode) => void }) {
+  return (
+    <div className="mode-tabs" role="group" aria-label="Mode" style={{ marginBottom: ".75rem" }}>
+      <button type="button" className="btn btn--sm" aria-pressed={mode === "daily"} onClick={() => setMode("daily")}>Daily Arena</button>
+      <button type="button" className="btn btn--sm" aria-pressed={mode === "level"} onClick={() => setMode("level")}>Levels</button>
+    </div>
+  );
+}
+
+function LevelMap({ levels, progress, selected, onSelect }: { levels: LevelSummary[]; progress: LevelProgress; selected: number; onSelect: (n: number) => void }) {
+  return (
+    <ol className="level-map" aria-label="Levels">
+      {levels.map((l) => {
+        const locked = l.n > progress.unlocked, best = progress.best[l.n], stars = best ? starCount(l.stars, best) : 0;
+        return (
+          <li key={l.n}>
+            <button type="button" disabled={locked} aria-pressed={selected === l.n} data-boss={l.kind === "boss" || undefined} onClick={() => onSelect(l.n)}
+              aria-label={`Level ${l.n}, ${l.name}${locked ? ", locked" : best ? `, best ${best}, ${stars} stars` : ""}`}>
+              <b>{locked ? "🔒" : l.n}</b>
+              <span aria-hidden="true">{locked ? "" : "★".repeat(stars) + "☆".repeat(3 - stars)}</span>
+            </button>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+function LevelCard({ level, best }: { level: LevelSummary; best: number | null }) {
+  return (
+    <div className="level-card">
+      <p style={{ margin: 0 }}><span className={`pill ${level.kind === "boss" ? "pill--soon" : "pill--dev"}`}>{level.name}</span> <span className="small muted">{level.seconds}s · {level.description}</span></p>
+      <p className="small" style={{ margin: ".5rem 0 0" }}>
+        Target <b style={{ color: "var(--amber)" }}>{level.target.toLocaleString("en-IN")}</b> · ★★ {level.stars[1].toLocaleString("en-IN")} · ★★★ {level.stars[2].toLocaleString("en-IN")}
+        {best !== null ? <> · Your best <b>{best.toLocaleString("en-IN")}</b></> : null}
+      </p>
     </div>
   );
 }
@@ -262,10 +341,10 @@ function TwistBadge({ twist }: { twist: TwistInfo }) {
   );
 }
 
-function GuestClaim({ runId, score, canRank, referralCode }: { runId: string; score: number; canRank: boolean; referralCode: string | null }) {
+function GuestClaim({ runId, score, canRank, levelCleared, referralCode }: { runId: string; score: number; canRank: boolean; levelCleared: number | null; referralCode: string | null }) {
   return (
     <div className="form-card" style={{ marginTop: "1.5rem", background: "var(--ink-900)" }}>
-      <h3 style={{ marginTop: 0 }}>{canRank ? `Save your ${score.toLocaleString("en-IN")} to today's leaderboard` : "Keep your scores"}</h3>
+      <h3 style={{ marginTop: 0 }}>{canRank ? `Save your ${score.toLocaleString("en-IN")} to today's leaderboard` : levelCleared ? `Save your progress and unlock Level ${levelCleared + 1}` : "Keep your scores"}</h3>
       <p className="small muted">Confirm your email to {canRank ? "put this run on the leaderboard, " : ""}track your best and streak, unlock Quick Play, and challenge friends under your own name. No password.</p>
       <WaitlistForm claimRunId={runId} referralCode={referralCode} compact />
     </div>

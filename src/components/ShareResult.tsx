@@ -5,10 +5,11 @@ import { track } from "@/lib/analytics";
 import { socials } from "@/lib/socials";
 
 /** Spoiler-free result line, Wordle-style: score, shards, best combo, power-ups, streak. No arena layout is revealed. */
-export function shareText(o: { mode: "quick" | "daily" | "challenge"; day: string | null; twist?: string | null; score: number; pickups: number; maxCombo: number; powerUps: number; streak: number | null; beat: boolean | null; target: number | null }) {
-  const head = (o.mode === "daily" && o.day ? `ONE MORE · Daily ${o.day}` : o.mode === "challenge" ? "ONE MORE · Challenge" : "ONE MORE") + (o.twist ? ` · ${o.twist}` : "");
+export function shareText(o: { mode: "quick" | "daily" | "challenge" | "level"; day: string | null; twist?: string | null; level?: { n: number; name: string; stars: number; passed: boolean } | null; score: number; pickups: number; maxCombo: number; powerUps: number; streak: number | null; beat: boolean | null; target: number | null }) {
+  const lv = o.level ? ` · Level ${o.level.n} ${o.level.name} ${"★".repeat(o.level.stars)}${"☆".repeat(3 - o.level.stars)}` : "";
+  const head = (o.mode === "daily" && o.day ? `ONE MORE · Daily ${o.day}` : o.mode === "challenge" ? "ONE MORE · Challenge" : "ONE MORE") + lv + (o.twist ? ` · ${o.twist}` : "");
   const stats = [`${o.score.toLocaleString("en-IN")} pts`, `◆${o.pickups}`, `×${o.maxCombo}`, ...(o.powerUps ? [`⬡${o.powerUps}`] : []), ...(o.streak && o.streak > 1 ? [`🔥${o.streak}`] : [])].join(" · ");
-  const hook = o.beat === true ? `Beat a friend's ${o.target!.toLocaleString("en-IN")}. Your turn:` : "Can you beat it?";
+  const hook = o.beat === true ? `Beat a friend's ${o.target!.toLocaleString("en-IN")}. Your turn:` : o.level?.passed ? "Cleared it. Can you?" : "Can you beat it?";
   return `${head}\n${stats}\n${hook}`;
 }
 

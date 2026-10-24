@@ -304,3 +304,17 @@ a.store-badge:hover { border-color: var(--cyan); color: var(--text); }
 .skeleton-row { height: 18px; margin: 10px 0; }
 .skeleton-card { min-height: 320px; }
 @keyframes shimmer { 0% { background-position: 100% 50%; } 100% { background-position: 0 50%; } }
+
+/* Levels mode */
+.level-map { list-style: none; padding: 0; margin: 1rem 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(52px, 1fr)); gap: 6px; }
+.level-map button { width: 100%; min-height: 52px; display: grid; place-items: center; gap: 2px; padding: 4px; border-radius: 10px; border: 1px solid var(--line); background: var(--ink-900); color: inherit; font: inherit; cursor: pointer; }
+.level-map button b { font-size: 1rem; line-height: 1; }
+.level-map button span { font-size: .62rem; color: var(--amber); letter-spacing: 1px; }
+.level-map button[data-boss] { border-color: rgba(255, 191, 71, 0.45); }
+.level-map button[aria-pressed="true"] { border-color: var(--cyan); background: rgba(62, 230, 240, 0.12); }
+.level-map button:disabled { opacity: .45; cursor: not-allowed; }
+.level-map button:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+.level-card { border: 1px solid var(--line); border-radius: 12px; padding: .75rem 1rem; margin-bottom: 1rem; }
+.level-stars { font-size: 1.75rem; letter-spacing: 4px; margin: -.5rem 0 1rem; color: rgba(238, 241, 250, 0.2); }
+.level-stars .on { color: var(--amber); text-shadow: 0 0 12px rgba(255, 191, 71, 0.5); }
+.level-stars .small { letter-spacing: normal; }

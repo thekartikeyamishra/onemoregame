@@ -7,7 +7,8 @@ import { site } from "./site";
 import { C, type Store } from "./store/types";
 import { splitToken } from "./validation";
 import type { Ctx, Signup } from "./early-access";
-import { ENGINE_VERSION, RUN_TICKS, TPS, TWISTS, WEEKDAY_TWIST, isTwistId, replay, validateInputLog, type InputLog, type RunResult, type TwistId } from "@/game/engine";
+import { ENGINE_VERSION, MAX_RUN_TICKS, RUN_TICKS, TPS, TWISTS, WEEKDAY_TWIST, isTwistId, replay, rulesFor, validateInputLog, type InputLog, type Rules, type RunResult, type TwistId } from "@/game/engine";
+import { LEVEL_COUNT, getLevel, starsFor } from "@/game/levels";
 
 export const SESSION_COOKIE = "om_session";
 export const SESSION_TTL_MS = 30 * 864e5;
@@ -21,7 +22,7 @@ const MIN_REAL_TIME_RATIO = 0.85;
  */
 export const RANKED_MAX_WALL_MS = (gameMs: number) => gameMs * 1.5 + 120_000;
 
-export type Mode = "quick" | "daily" | "challenge";
+export type Mode = "quick" | "daily" | "challenge" | "level";
 
 export interface Player extends Record<string, unknown> {
   displayName: string | null;
@@ -39,7 +40,24 @@ export interface Player extends Record<string, unknown> {
   streak?: number;
   bestStreak?: number;
   lastDailyDay?: string | null;
+  /** Levels mode: highest unlocked level and best score per level. */
+  levels?: LevelProgress;
 }
+
+export interface LevelProgress { unlocked: number; best: Record<string, number> }
+
+/** Pure: level progress after a Levels-mode run. Clearing level n unlocks n + 1. */
+export function levelProgressAfter(prev: LevelProgress | undefined, n: number, score: number): { progress: LevelProgress; passed: boolean; newBest: boolean } {
+  const p: LevelProgress = { unlocked: prev?.unlocked ?? 1, best: { ...(prev?.best ?? {}) } };
+  const def = getLevel(n);
+  const passed = !!def && score >= def.target;
+  const newBest = score > (p.best[n] ?? -1);
+  if (newBest) p.best[n] = score;
+  if (passed) p.unlocked = Math.max(p.unlocked, Math.min(LEVEL_COUNT, n + 1));
+  return { progress: p, passed, newBest };
+}
+
+export interface LevelResult { n: number; target: number; stars: number; passed: boolean; unlocked: number; best: number }
 
 const EMPTY_PLAYER: Player = { displayName: null, runs: 0, bestScore: 0, firstRunAt: null, lastDay: null, days: 0, played: false, repeated: false, returned: false, streak: 0, bestStreak: 0, lastDailyDay: null };
 
@@ -166,38 +184,54 @@ export async function setDisplayName(ctx: Ctx, signupId: string, name: string) {
 // ---------------------------------------------------------------- runs
 
 export interface Challenge extends Record<string, unknown> {
-  seed: number; score: number; ownerId: string | null; twist?: TwistId;
+  seed: number; score: number; ownerId: string | null; twist?: TwistId; level?: number | null;
   /** The challenger's verified input recording, shown as a ghost. Stored only when the player shares. */
   ghost?: InputLog | null; displayName: string | null; referralCode: string | null;
   createdAt: number; attempts: number; beaten: number;
 }
 
 export type StartResult =
-  | { runId: string; seed: number; mode: Mode; day: string | null; target: number | null; twist: ReturnType<typeof twistInfo>; ghost: InputLog | null; ghostName: string | null }
-  | { error: "not-found" };
+  | { runId: string; seed: number; mode: Mode; day: string | null; target: number | null; twist: ReturnType<typeof twistInfo>; ghost: InputLog | null; ghostName: string | null; level: LevelInfo | null; rules: Partial<Rules> }
+  | { error: "not-found" | "locked" };
 
-export async function startRun(ctx: Ctx, signupId: string | null, mode: Mode, challengeId?: string | null): Promise<StartResult> {
+export interface LevelInfo { n: number; name: string; description: string; target: number; stars: readonly number[] }
+function levelInfo(n: number | null): LevelInfo | null {
+  const d = n ? getLevel(n) : null;
+  return d ? { n: d.n, name: d.name, description: d.description, target: d.target, stars: d.stars } : null;
+}
+
+export async function startRun(ctx: Ctx, signupId: string | null, mode: Mode, challengeId?: string | null, levelNo?: number | null): Promise<StartResult> {
   const now = ctx.now ?? Date.now();
   let seed: number, day: string | null = null, target: number | null = null, twist: TwistId = "classic";
-  let ghost: InputLog | null = null, ghostName: string | null = null;
+  let ghost: InputLog | null = null, ghostName: string | null = null, level: number | null = null;
   if (mode === "daily") { day = dayKey(now); seed = dailySeed(ctx.secret, day); twist = dailyTwist(day); }
+  else if (mode === "level") {
+    const def = levelNo ? getLevel(levelNo) : null;
+    if (!def) return { error: "not-found" };
+    // Guests can try Level 1; confirmed players play any level they have unlocked.
+    const unlocked = signupId ? ((await ctx.store.get<Player>(C.players, signupId))?.levels?.unlocked ?? 1) : 1;
+    if (def.n > unlocked) return { error: "locked" };
+    seed = def.seed; target = def.target; level = def.n;
+  }
   else if (mode === "challenge") {
     if (!challengeId || !/^[a-hj-km-np-z2-9]{10}$/.test(challengeId)) return { error: "not-found" };
     const c = await ctx.store.get<Challenge>(C.challenges, challengeId);
     if (!c) return { error: "not-found" };
     seed = c.seed; target = c.score; twist = isTwistId(c.twist) ? c.twist : "classic";
+    level = typeof c.level === "number" && getLevel(c.level) ? c.level : null;
     ghost = Array.isArray(c.ghost) ? c.ghost : null; ghostName = c.displayName;
   } else seed = randomInt(1, 2147483647);
   const runId = randomToken(12);
   await ctx.store.transaction(async (tx) => {
-    tx.create(C.runStarts, runId, { signupId, mode, seed, day, twist, challengeId: mode === "challenge" ? challengeId : null, startedAt: now, used: false, expireAt: new Date(now + RUN_START_TTL_MS) });
+    tx.create(C.runStarts, runId, { signupId, mode, seed, day, twist, level, challengeId: mode === "challenge" ? challengeId : null, startedAt: now, used: false, expireAt: new Date(now + RUN_START_TTL_MS) });
   });
-  return { runId, seed, mode, day, target, twist: twistInfo(twist), ghost, ghostName };
+  const info = levelInfo(level);
+  return { runId, seed, mode, day, target, twist: twistInfo(twist), ghost, ghostName, level: info, rules: level ? getLevel(level)!.rules : {} };
 }
 
 export type UnrankedReason = "paused-too-long" | "duplicate-inputs" | "leaderboard-banned" | "guest";
 export type FinishResult =
-  | { status: "ok"; result: RunResult; personalBest: number | null; newBest: boolean; target: number | null; beat: boolean | null; ranked: boolean; unrankedReason: UnrankedReason | null; streak: number | null; guest: boolean }
+  | { status: "ok"; result: RunResult; personalBest: number | null; newBest: boolean; target: number | null; beat: boolean | null; ranked: boolean; unrankedReason: UnrankedReason | null; streak: number | null; guest: boolean; level: LevelResult | null }
   | { status: "invalid" | "mismatch" | "too-fast" | "expired" | "forbidden" | "outdated" };
 
 export async function finishRun(
@@ -206,13 +240,16 @@ export async function finishRun(
   const now = ctx.now ?? Date.now();
   if (typeof body.runId !== "string" || !/^[A-Za-z0-9_-]{8,40}$/.test(body.runId)) return { status: "invalid" };
   if (body.version !== ENGINE_VERSION) return { status: "outdated" };
-  if (!validateInputLog(body.inputs) || !Number.isInteger(body.score)) return { status: "invalid" };
-  const start = await ctx.store.get<{ signupId: string | null; mode: Mode; seed: number; day: string | null; twist?: TwistId; challengeId: string | null; startedAt: number; used: boolean }>(C.runStarts, body.runId);
+  if (!validateInputLog(body.inputs, MAX_RUN_TICKS) || !Number.isInteger(body.score)) return { status: "invalid" };
+  const start = await ctx.store.get<{ signupId: string | null; mode: Mode; seed: number; day: string | null; twist?: TwistId; level?: number | null; challengeId: string | null; startedAt: number; used: boolean }>(C.runStarts, body.runId);
   if (!start || start.used || now - start.startedAt > RUN_START_TTL_MS) return { status: "expired" };
   if (start.signupId !== signupId) return { status: "forbidden" };
 
   const twist: TwistId = isTwistId(start.twist) ? start.twist : "classic";
-  const result = replay(start.seed, body.inputs as InputLog, twist);
+  const levelDef = start.level ? getLevel(start.level) : null;
+  const levelRules = levelDef?.rules ?? {};
+  if (!validateInputLog(body.inputs, rulesFor(twist, levelRules).durationTicks)) return { status: "invalid" };
+  const result = replay(start.seed, body.inputs as InputLog, twist, levelRules);
   if (result.score !== body.score) return { status: "mismatch" };
   if (now - start.startedAt < (result.ticks / TPS) * 1000 * MIN_REAL_TIME_RATIO) return { status: "too-fast" };
 
@@ -240,7 +277,7 @@ export async function finishRun(
     if (dailyId && player?.leaderboardBanned && !unrankedReason) unrankedReason = "leaderboard-banned";
     tx.update(C.runStarts, runId, { used: true });
     tx.create(C.runs, runId, {
-      signupId, mode: start.mode, seed: start.seed, day: start.day, twist, challengeId: start.challengeId,
+      signupId, mode: start.mode, seed: start.seed, day: start.day, twist, level: levelDef?.n ?? null, challengeId: start.challengeId,
       score: result.score, ticks: result.ticks, pickups: result.pickups, hits: result.hits, nearMisses: result.nearMisses,
       maxCombo: result.maxCombo, powerUps: result.powerUps, shieldBlocks: result.shieldBlocks, inputEvents: result.inputEvents,
       inputHash, elapsedMs: elapsed, engine: ENGINE_VERSION, createdAt: now,
@@ -251,8 +288,19 @@ export async function finishRun(
     });
 
     let personalBest: number | null = null, newBest = false, streak: number | null = null;
+    let levelResult: LevelResult | null = null;
+    if (!signupId && start.mode === "level" && levelDef) {
+      // Guests see their result; progress is saved when they confirm an email (see claimGuestRun).
+      const passed = result.score >= levelDef.target;
+      levelResult = { n: levelDef.n, target: levelDef.target, stars: starsFor(levelDef, result.score), passed, unlocked: passed ? Math.min(LEVEL_COUNT, levelDef.n + 1) : 1, best: result.score };
+    }
     if (signupId) {
       const next = playerAfterRun(player, { score: result.score, mode: start.mode, day: start.day }, day, now);
+      if (start.mode === "level" && levelDef) {
+        const lp = levelProgressAfter(player?.levels, levelDef.n, result.score);
+        next.levels = lp.progress;
+        levelResult = { n: levelDef.n, target: levelDef.target, stars: starsFor(levelDef, result.score), passed: lp.passed, unlocked: lp.progress.unlocked, best: lp.progress.best[levelDef.n] };
+      }
       newBest = result.score > (player?.bestScore ?? 0);
       personalBest = next.bestScore;
       streak = currentStreak(next, day);
@@ -272,7 +320,7 @@ export async function finishRun(
     return {
       status: "ok", result, personalBest, newBest, target: challenge?.score ?? null, beat,
       ranked: start.mode === "daily" && !unrankedReason && !!signupId,
-      unrankedReason: guestDaily && !unrankedReason ? "guest" : unrankedReason, streak, guest: !signupId,
+      unrankedReason: guestDaily && !unrankedReason ? "guest" : unrankedReason, streak, guest: !signupId, level: levelResult,
     };
   });
 }
@@ -280,16 +328,17 @@ export async function finishRun(
 /** Create a shareable challenge from a verified run. Guests can share their own (unclaimed) runs too; the run ID is the proof of ownership. */
 export async function createChallenge(ctx: Ctx, signupId: string | null, runId: unknown, inputs?: unknown): Promise<string | null> {
   if (typeof runId !== "string" || !/^[A-Za-z0-9_-]{8,40}$/.test(runId)) return null;
-  const run = await ctx.store.get<{ signupId: string | null; seed: number; score: number; twist?: TwistId; challengeId?: string | null }>(C.runs, runId);
+  const run = await ctx.store.get<{ signupId: string | null; seed: number; score: number; twist?: TwistId; level?: number | null; challengeId?: string | null }>(C.runs, runId);
   if (!run || run.signupId !== signupId) return null;
   const twist: TwistId = isTwistId(run.twist) ? run.twist : "classic";
   // The ghost recording is re-verified: it must replay to exactly this run's score.
-  const ghost = validateInputLog(inputs) && replay(run.seed, inputs, twist).score === run.score ? inputs : null;
+  const levelRules = run.level ? getLevel(run.level)?.rules ?? {} : {};
+  const ghost = validateInputLog(inputs, rulesFor(twist, levelRules).durationTicks) && replay(run.seed, inputs, twist, levelRules).score === run.score ? inputs : null;
   const [player, signup] = signupId ? await Promise.all([getPlayer(ctx.store, signupId), ctx.store.get<Signup>(C.signups, signupId)]) : [null, null];
   const id = randomCode(10);
   await ctx.store.transaction(async (tx) => {
     tx.create(C.challenges, id, {
-      seed: run.seed, score: run.score, twist, ghost, ownerId: signupId, displayName: player?.displayName ?? null, referralCode: signup?.referralCode ?? null,
+      seed: run.seed, score: run.score, twist, level: run.level ?? null, ghost, ownerId: signupId, displayName: player?.displayName ?? null, referralCode: signup?.referralCode ?? null,
       createdAt: ctx.now ?? Date.now(), attempts: 0, beaten: 0,
     } satisfies Challenge);
   });
@@ -358,13 +407,14 @@ export async function claimGuestRun(ctx: Ctx, signupId: string): Promise<number 
     const s = await tx.get<Signup>(C.signups, signupId);
     const runId = s?.claimRunId as string | null | undefined;
     if (!s || !runId) return null;
-    const run = await tx.get<{ signupId: string | null; claimedAt: number | null; mode: Mode; day: string | null; score: number; rankEligible: boolean | null }>(C.runs, runId);
+    const run = await tx.get<{ signupId: string | null; claimedAt: number | null; mode: Mode; day: string | null; score: number; rankEligible: boolean | null; level?: number | null }>(C.runs, runId);
     const player = await tx.get<Player>(C.players, signupId);
     const dailyId = run?.mode === "daily" && run.day === today && run.rankEligible ? `${today}_${signupId}` : null;
     const daily = dailyId ? await tx.get<{ score: number }>(C.dailyScores, dailyId) : null;
     tx.update(C.signups, signupId, { claimRunId: null });
     if (!run || run.signupId !== null || run.claimedAt) return null;
     const next = playerAfterRun(player, run, today, now);
+    if (run.mode === "level" && run.level) next.levels = levelProgressAfter(player?.levels, run.level, run.score).progress;
     tx.set(C.players, signupId, next);
     tx.update(C.runs, runId, { signupId, claimedAt: now, ranked: !!dailyId && !player?.leaderboardBanned });
     if (dailyId && !player?.leaderboardBanned && (!daily || run.score > daily.score)) {

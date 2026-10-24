@@ -10,6 +10,8 @@
 export const ENGINE_VERSION = 3;
 export const TPS = 60;
 export const RUN_TICKS = 60 * TPS;
+/** Longest run any mode may use (Levels can be shorter or longer than 60 s). */
+export const MAX_RUN_TICKS = 90 * TPS;
 export const ARENA_R = 300;
 export const PLAYER_R = 10;
 export const SHARD_R = 8;
@@ -47,6 +49,40 @@ export const TWISTS: Record<TwistId, Twist> = {
   frenzy: { id: "frenzy", name: "Frenzy Friday", description: "Power-ups appear twice as often.", powerGap: [300, 180] },
   swarm: { id: "swarm", name: "Swarm Saturday", description: "Two extra hazards on the field.", extraHazards: 2 },
 };
+/**
+ * The complete rule set of one run. Twists and Levels are just different Rules; the simulation reads only these.
+ * Defaults reproduce the classic game exactly.
+ */
+export interface Rules {
+  durationTicks: number;
+  hazardSpeed: number;
+  extraHazards: number;
+  /** Multiplier on the per-tick hazard spawn chance. */
+  spawnRate: number;
+  shardR: number;
+  powerOnly: PowerType | null;
+  powerGap: readonly [number, number];
+  startShield: boolean;
+}
+
+export const CLASSIC_RULES: Rules = {
+  durationTicks: RUN_TICKS, hazardSpeed: 1, extraHazards: 0, spawnRate: 1, shardR: SHARD_R, powerOnly: null, powerGap: [600, 300], startShield: false,
+};
+
+export function rulesFor(twist: TwistId = "classic", override: Partial<Rules> = {}): Rules {
+  const t = TWISTS[twist];
+  return {
+    ...CLASSIC_RULES,
+    ...(t.hazardSpeed !== undefined ? { hazardSpeed: t.hazardSpeed } : {}),
+    ...(t.extraHazards !== undefined ? { extraHazards: t.extraHazards } : {}),
+    ...(t.shardR !== undefined ? { shardR: t.shardR } : {}),
+    ...(t.powerOnly !== undefined ? { powerOnly: t.powerOnly } : {}),
+    ...(t.powerGap !== undefined ? { powerGap: t.powerGap } : {}),
+    ...(t.startShield !== undefined ? { startShield: t.startShield } : {}),
+    ...override,
+  };
+}
+
 /** Sunday = 0 … Saturday = 6. */
 export const WEEKDAY_TWIST: TwistId[] = ["classic", "magnet", "turbo", "wide", "shield", "frenzy", "swarm"];
 
@@ -78,6 +114,7 @@ export type GameEvent =
 export interface GameState {
   seed: number;
   twist: TwistId;
+  rules: Rules;
   rng: number;
   tick: number;
   ticksLeft: number;
@@ -120,13 +157,13 @@ export function normalizeSeed(seed: number): number {
   return (Math.floor(Math.abs(seed)) % 2147483647) | 0;
 }
 
-export function createGame(seed: number, twist: TwistId = "classic"): GameState {
-  const t = TWISTS[twist];
+export function createGame(seed: number, twist: TwistId = "classic", override: Partial<Rules> = {}): GameState {
+  const rules = rulesFor(twist, override);
   const s: GameState = {
-    seed: normalizeSeed(seed), twist, rng: normalizeSeed(seed), tick: 0, ticksLeft: RUN_TICKS,
+    seed: normalizeSeed(seed), twist, rules, rng: normalizeSeed(seed), tick: 0, ticksLeft: rules.durationTicks,
     x: 0, y: 0, vx: 0, vy: 0, dir: -1, facing: 0, dashCooldown: 0, invuln: 0, dashing: 0,
     score: 0, combo: 0, comboTimer: 0, maxCombo: 0, shards: [], hazards: [], nextHazardId: 1,
-    power: null, nextPowerTick: POWER_FIRST_TICK, active: { shield: t.startShield ? POWER_DURATION.shield : 0, slow: 0, magnet: 0, double: 0 },
+    power: null, nextPowerTick: POWER_FIRST_TICK, active: { shield: rules.startShield ? POWER_DURATION.shield : 0, slow: 0, magnet: 0, double: 0 },
     pickups: 0, hits: 0, shieldBlocks: 0, nearMisses: 0, powerUps: 0, over: false,
   };
   for (let i = 0; i < 4; i++) spawnShard(s);
@@ -159,13 +196,13 @@ function spawnHazard(s: GameState) {
   const tr = next(s) * ARENA_R * 0.6;
   const dx = to[0] * tr - sx, dy = to[1] * tr - sy;
   const len = Math.sqrt(dx * dx + dy * dy) || 1;
-  const progress = s.tick / RUN_TICKS;
-  const speed = (1.5 + next(s) * 1.0) * (1 + progress * 0.6) * (TWISTS[s.twist].hazardSpeed ?? 1); // units per tick
+  const progress = s.tick / s.rules.durationTicks;
+  const speed = (1.5 + next(s) * 1.0) * (1 + progress * 0.6) * s.rules.hazardSpeed; // units per tick
   s.hazards.push({ id: s.nextHazardId++, x: sx, y: sy, vx: (dx / len) * speed, vy: (dy / len) * speed, s: 12 + next(s) * 8, hit: false, nearMissed: false });
 }
 
 function nextPowerGap(s: GameState): number {
-  const [base, span] = TWISTS[s.twist].powerGap ?? [600, 300];
+  const [base, span] = s.rules.powerGap;
   return s.tick + base + Math.floor(next(s) * span);
 }
 
@@ -225,7 +262,7 @@ export function step(s: GameState, input: TickInput): GameEvent[] {
       if (d2 < MAGNET_RANGE * MAGNET_RANGE && d2 > 0) { const d = Math.sqrt(d2); const pull = Math.min(4, d); sh.x += (dx / d) * pull; sh.y += (dy / d) * pull; }
     }
   }
-  const sr = TWISTS[s.twist].shardR ?? SHARD_R;
+  const sr = s.rules.shardR;
   const reach = (PLAYER_R + sr) * (PLAYER_R + sr);
   for (let i = s.shards.length - 1; i >= 0; i--) {
     const sh = s.shards[i];
@@ -260,13 +297,13 @@ export function step(s: GameState, input: TickInput): GameEvent[] {
   } else if (s.tick >= s.nextPowerTick) {
     const p = spawnPoint(s, 90);
     const roll = POWER_TYPES[Math.floor(next(s) * POWER_TYPES.length)];
-    s.power = { type: TWISTS[s.twist].powerOnly ?? roll, x: p.x, y: p.y, born: s.tick };
+    s.power = { type: s.rules.powerOnly ?? roll, x: p.x, y: p.y, born: s.tick };
   }
 
   // --- Hazards
-  const progress = s.tick / RUN_TICKS;
-  const maxHazards = 3 + Math.floor(s.tick / 900) + (TWISTS[s.twist].extraHazards ?? 0);
-  if (s.hazards.length < maxHazards && next(s) < 0.012 + 0.02 * progress) spawnHazard(s);
+  const progress = s.tick / s.rules.durationTicks;
+  const maxHazards = 3 + Math.floor(s.tick / 900) + s.rules.extraHazards;
+  if (s.hazards.length < maxHazards && next(s) < (0.012 + 0.02 * progress) * s.rules.spawnRate) spawnHazard(s);
   const speedScale = s.active.slow > 0 ? 0.5 : 1;
   const limit = ARENA_R * 1.4 * (ARENA_R * 1.4);
   for (let i = s.hazards.length - 1; i >= 0; i--) {
@@ -312,12 +349,13 @@ export class InputRecorder {
   }
 }
 
-export function validateInputLog(log: unknown): log is InputLog {
+/** Validates a recorded input log. `maxTicks` is the run length (pass `rules.durationTicks` for longer level runs). */
+export function validateInputLog(log: unknown, maxTicks: number = RUN_TICKS): log is InputLog {
   if (!Array.isArray(log) || log.length % 3 !== 0 || log.length > MAX_INPUT_EVENTS * 3) return false;
   let prev = -1;
   for (let i = 0; i < log.length; i += 3) {
     const [t, d, k] = [log[i], log[i + 1], log[i + 2]];
-    if (!Number.isInteger(t) || t <= prev || t < 0 || t >= RUN_TICKS) return false;
+    if (!Number.isInteger(t) || t <= prev || t < 0 || t >= maxTicks) return false;
     if (!Number.isInteger(d) || d < -1 || d > 63) return false;
     if (k !== 0 && k !== 1) return false;
     prev = t;
@@ -332,7 +370,7 @@ export class GhostPlayer {
   readonly state: GameState;
   private i = 0;
   private dir = -1;
-  constructor(seed: number, private log: InputLog, twist: TwistId = "classic") { this.state = createGame(seed, twist); }
+  constructor(seed: number, private log: InputLog, twist: TwistId = "classic", override: Partial<Rules> = {}) { this.state = createGame(seed, twist, override); }
   step(): void {
     const s = this.state;
     if (s.over) return;
@@ -347,8 +385,8 @@ export function resultOf(s: GameState, inputEvents: number): RunResult {
 }
 
 /** Re-simulate a full run from its seed and input log. */
-export function replay(seed: number, log: InputLog, twist: TwistId = "classic"): RunResult {
-  const s = createGame(seed, twist);
+export function replay(seed: number, log: InputLog, twist: TwistId = "classic", override: Partial<Rules> = {}): RunResult {
+  const s = createGame(seed, twist, override);
   let i = 0, dir = -1;
   while (!s.over) {
     let dash = false;

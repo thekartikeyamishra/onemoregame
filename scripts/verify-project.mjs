@@ -19,10 +19,10 @@ if (pkg.name !== "one-more") {
 // (e.g. another project's app/, components/, lib/, postcss/tailwind configs) and can break dev/build.
 const ROOT_ALLOWED = new Set([
   // ONE MORE files and folders
-  ".github", ".gitignore", ".env.example", "AGENTS.md", "README.md", "apphosting.yaml", "docs", "e2e", "eslint.config.mjs", "film",
+  ".github", ".gitignore", ".env.example", "AGENTS.md", "README.md", "docs", "e2e", "eslint.config.mjs", "film",
   "firebase.json", "firestore.indexes.json", "firestore.rules", "next.config.ts", "onemore-manifest.json", "package.json",
-  "package-lock.json", "playwright.config.ts", "public", "scripts", "src", "tests", "tests-rules", "tsconfig.json",
-  "vitest.config.mts", "vitest.rules.config.mts",
+  "package-lock.json", "playwright.config.ts", "public", "scripts", "src", "tests", "tsconfig.json",
+  "vitest.config.mts",
   // generated, local or tool files that are fine to have
   ".git", "node_modules", ".next", ".vercel", ".firebase", ".firebaserc", "next-env.d.ts", "tsconfig.tsbuildinfo", ".e2e",
   "test-results", "playwright-report", "coverage", ".vscode", ".idea", ".DS_Store", "Thumbs.db", "_foreign_backup",

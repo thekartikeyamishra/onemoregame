@@ -46,7 +46,7 @@ export const site = {
     },
   },
   /** Last substantive content review date; update when public content changes materially. */
-  contentUpdated: "2026-10-22",
+  contentUpdated: "2026-10-24",
 } as const;
 
 /** Public, indexable routes. The sitemap is generated from this list only. */

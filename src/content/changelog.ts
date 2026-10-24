@@ -3,6 +3,16 @@ export interface ChangelogEntry { date: string; title: string; items: string[] }
 
 export const changelog: ChangelogEntry[] = [
   {
+    date: "2026-10-24",
+    title: "Levels: a 30-stage campaign",
+    items: [
+      "New Levels mode: 30 fixed arenas, ten level types (Sprint, Magnet Field, Precision, Frenzy, Gauntlet, Iron Start, Endurance, Swarm, Boss Arena and Warm-up).",
+      "Each level has a pass mark set from simulated play; reach it to unlock the next. Two and three stars for higher scores.",
+      "Every fifth level is a Boss Arena. Guests can try Level 1; confirming an email saves progress.",
+      "Level scores are verified by replay with the level's exact rules, like every other run.",
+    ],
+  },
+  {
     date: "2026-10-22",
     title: "Guides, ghost racing and Daily twists",
     items: [

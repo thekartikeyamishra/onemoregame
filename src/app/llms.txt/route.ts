@@ -8,7 +8,7 @@ export function GET() {
 
 > ${site.description}
 
-Status (${site.contentUpdated}): open browser playtest. Anyone can play the daily shared arena and friend challenges with no sign-up; confirming an email unlocks Quick Play, the leaderboard, streaks and saved scores. Four power-ups and a different Daily twist each weekday. Friend challenges show the challenger's ghost. Scores are server-verified by replay. No mobile apps yet. Campus Clash is planned. Made by Kartikeya Mishra at SEEVE Tech.
+Status (${site.contentUpdated}): open browser playtest. Anyone can play the daily shared arena and friend challenges with no sign-up; confirming an email unlocks Quick Play, the leaderboard, streaks and saved scores. Four power-ups, a different Daily twist each weekday, and a 30-level campaign with target scores and stars. Friend challenges show the challenger's ghost. Scores are server-verified by replay. No mobile apps yet. Campus Clash is planned. Made by Kartikeya Mishra at SEEVE Tech.
 
 ## Pages
 - [Play](${absoluteUrl("/play")}): play today's Daily Arena in the browser

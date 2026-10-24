@@ -140,3 +140,16 @@ test("guest plays today's arena, saves the run with an email, and lands on the l
   await expect(page.getByRole("button", { name: "Quick Play" })).toBeVisible();
   await expect(page.locator(".lb")).toContainText(score);
 });
+
+test("guests can try Level 1 of Levels; later levels stay locked", async ({ page, request }) => {
+  await page.goto("/play");
+  await page.getByRole("button", { name: "Levels" }).click();
+  await expect(page.getByRole("heading", { name: "Level 1" })).toBeVisible();
+  await expect(page.getByText(/Target/).first()).toBeVisible();
+  const ok = await request.post("/api/game/start", { data: { mode: "level", level: 1 } });
+  expect(ok.status()).toBe(200);
+  expect((await ok.json()).level).toMatchObject({ n: 1 });
+  expect((await request.post("/api/game/start", { data: { mode: "level", level: 2 } })).status()).toBe(403);
+  await page.getByRole("button", { name: "Play Level 1" }).click();
+  await expect(page.locator("canvas")).toBeVisible();
+});

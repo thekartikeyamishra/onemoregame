@@ -5,7 +5,7 @@
     "dev": "node scripts/verify-project.mjs && next dev",
     "build": "node scripts/verify-project.mjs && next build",
     "start": "next start",
-    "lint": "eslint src tests tests-rules e2e scripts next.config.ts playwright.config.ts eslint.config.mjs",
+    "lint": "eslint src tests e2e scripts next.config.ts playwright.config.ts eslint.config.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "check": "npm run typecheck && npm run lint && npm test && npm run build",
@@ -15,14 +15,14 @@
     "signup:delete": "tsx --conditions=react-server scripts/delete-signup.ts",
     "metrics": "tsx --conditions=react-server scripts/funnel-metrics.ts",
     "test:e2e": "npm run build:local && playwright test",
-    "test:rules": "firebase emulators:exec --only firestore --project demo-one-more \"vitest run --config vitest.rules.config.mts\"",
     "leaderboard:review": "tsx --conditions=react-server scripts/review-leaderboard.ts",
     "build:local": "cross-env NEXT_PUBLIC_SITE_URL=http://localhost:3100 next build",
     "stats": "tsx scripts/measure-stats.ts",
     "doctor": "node scripts/doctor.mjs",
     "verify": "node scripts/verify-project.mjs",
     "verify:fix": "node scripts/verify-project.mjs --fix",
-    "manifest": "node scripts/write-manifest.mjs"
+    "manifest": "node scripts/write-manifest.mjs",
+    "levels": "tsx scripts/build-levels.ts"
   },
   "dependencies": {
     "@fontsource-variable/inter": "^5.3.0",
@@ -35,7 +35,6 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
-    "@firebase/rules-unit-testing": "^5.0.2",
     "@playwright/test": "^1.64.1",
     "@types/node": "^22.20.5",
     "@types/react": "^19.3.0",
@@ -43,8 +42,6 @@
     "cross-env": "^10.1.0",
     "eslint": "^9.39.5",
     "eslint-config-next": "^16.4.2",
-    "firebase": "^12.19.0",
-    "firebase-tools": "^15.34.0",
     "tsx": "^4.23.15",
     "typescript": "^6.0.3",
     "vitest": "^5.0.5"

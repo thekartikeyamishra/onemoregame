@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ARENA_R, DASH_COOLDOWN, GhostPlayer, SHARD_R, TWISTS, InputRecorder, MAGNET_RANGE, POWER_DURATION, POWER_LIFETIME, POWER_R, RUN_TICKS, TPS, createGame, dirIndex, resultOf, step, type GameState, type InputLog, type PowerType, type RunResult, type TwistId } from "./engine";
+import { ARENA_R, DASH_COOLDOWN, GhostPlayer, TWISTS, InputRecorder, MAGNET_RANGE, POWER_DURATION, POWER_LIFETIME, POWER_R, TPS, createGame, dirIndex, resultOf, step, type GameState, type InputLog, type PowerType, type Rules, type RunResult, type TwistId } from "./engine";
 import type { Sfx } from "./audio";
 
 type Particle = { x: number; y: number; vx: number; vy: number; life: number; color: string };
@@ -20,8 +20,10 @@ export interface RunEnd { log: InputLog; result: RunResult }
  * Plays one run for `seed`: 3-2-1 countdown, fixed-timestep simulation, input recording, rendering.
  * Calls onEnd exactly once when the run is over. Unmount to abandon a run.
  */
-export function GameCanvas({ seed, twist = "classic", ghost = null, ghostName = null, sfx, reducedEffects, onEnd, onQuit }: {
+export function GameCanvas({ seed, twist = "classic", rules = null, level = null, ghost = null, ghostName = null, sfx, reducedEffects, onEnd, onQuit }: {
   seed: number; twist?: TwistId; ghost?: InputLog | null; ghostName?: string | null;
+  /** Levels mode: server-supplied rule overrides and the level to show in the HUD. */
+  rules?: Partial<Rules> | null; level?: { n: number; name: string; description: string; target: number } | null;
   sfx: Sfx; reducedEffects: boolean; onEnd: (r: RunEnd) => void; onQuit: () => void;
 }) {
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -38,11 +40,13 @@ export function GameCanvas({ seed, twist = "classic", ghost = null, ghostName = 
   useEffect(() => {
     const canvas = canvasRef.current!, wrap = wrapRef.current!;
     const ctx = canvas.getContext("2d")!;
-    const state: GameState = createGame(seed, twist);
+    const state: GameState = createGame(seed, twist, rules ?? {});
+    const total = state.rules.durationTicks;
+    const oy = level ? 14 : 0; // room for the target bar
     // The friend's ghost replays their verified inputs in lock-step. Only its orb and score are drawn (its world diverges).
-    const ghostRun = ghost ? new GhostPlayer(seed, ghost, twist) : null;
+    const ghostRun = ghost ? new GhostPlayer(seed, ghost, twist, rules ?? {}) : null;
     const ghostLabel = (ghostName ?? "Friend").slice(0, 16);
-    const shardR = TWISTS[twist].shardR ?? SHARD_R;
+    const shardR = state.rules.shardR;
     const rec = new InputRecorder();
     const keys = new Set<string>();
     let pointer: { x: number; y: number } | null = null;
@@ -107,7 +111,7 @@ export function GameCanvas({ seed, twist = "classic", ghost = null, ghostName = 
       for (let x = (W / 2) % g; x < W; x += g) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
       for (let y = (H / 2) % g; y < H; y += g) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
       // Timer ring around the arena
-      const frac = state.ticksLeft / RUN_TICKS;
+      const frac = state.ticksLeft / total;
       ctx.lineWidth = 3; ctx.strokeStyle = "rgba(62,230,240,0.15)";
       ctx.beginPath(); ctx.arc(W / 2, H / 2, ARENA_R * scale, 0, Math.PI * 2); ctx.stroke();
       ctx.strokeStyle = frac < 0.17 ? COLORS.amber : COLORS.ring;
@@ -193,12 +197,23 @@ export function GameCanvas({ seed, twist = "classic", ghost = null, ghostName = 
         ctx.fillStyle = gap >= 0 ? COLORS.green : COLORS.violet; ctx.font = "700 15px system-ui, sans-serif";
         ctx.fillText(gap >= 0 ? `+${gap.toLocaleString("en-IN")} ahead` : `${gap.toLocaleString("en-IN")} behind`, W - 16, 74);
       }
-      if (twist !== "classic" && state.tick < 4 * TPS) {
+      if (level) {
+        // Target bar under the score: fills toward the level's pass mark.
+        const p = Math.min(1, state.score / level.target), bw = 120;
+        ctx.fillStyle = "rgba(238,241,250,0.15)"; ctx.fillRect(16, 40, bw, 5);
+        ctx.fillStyle = p >= 1 ? COLORS.green : COLORS.amber; ctx.fillRect(16, 40, bw * p, 5);
+        ctx.textAlign = "left"; ctx.font = "600 12px system-ui, sans-serif"; ctx.fillStyle = p >= 1 ? COLORS.green : "rgba(238,241,250,0.75)";
+        ctx.fillText(p >= 1 ? "TARGET CLEARED ✓" : `Target ${level.target.toLocaleString("en-IN")}`, 16 + bw + 8, 46);
+        if (state.tick < 4 * TPS) {
+          ctx.textAlign = "center"; ctx.fillStyle = COLORS.amber; ctx.font = "700 16px system-ui, sans-serif";
+          ctx.fillText(`Level ${level.n} · ${level.name}: ${level.description}`, W / 2, H - 20);
+        }
+      } else if (twist !== "classic" && state.tick < 4 * TPS) {
         ctx.textAlign = "center"; ctx.fillStyle = COLORS.amber; ctx.font = "700 16px system-ui, sans-serif";
         ctx.fillText(`${TWISTS[twist].name}: ${TWISTS[twist].description}`, W / 2, H - 20);
       }
-      if (state.combo > 1) { ctx.textAlign = "left"; ctx.fillStyle = COLORS.cyan; ctx.font = "700 16px system-ui, sans-serif"; ctx.fillText(`COMBO ×${state.combo}`, 16, 56); }
-      let hy = state.combo > 1 ? 80 : 56;
+      if (state.combo > 1) { ctx.textAlign = "left"; ctx.fillStyle = COLORS.cyan; ctx.font = "700 16px system-ui, sans-serif"; ctx.fillText(`COMBO ×${state.combo}`, 16, 56 + oy); }
+      let hy = (state.combo > 1 ? 80 : 56) + oy;
       for (const t of ["shield", "slow", "magnet", "double"] as PowerType[]) {
         if (state.active[t] <= 0) continue;
         const look = POWER_LOOK[t];
@@ -275,7 +290,7 @@ export function GameCanvas({ seed, twist = "classic", ghost = null, ghostName = 
       window.removeEventListener("keydown", onKey); window.removeEventListener("keyup", onKey);
       window.removeEventListener("blur", onBlur); document.removeEventListener("visibilitychange", onVis);
     };
-  }, [seed, twist, ghost, ghostName, sfx, reducedEffects]);
+  }, [seed, twist, rules, level, ghost, ghostName, sfx, reducedEffects]);
 
   return (
     <div className="game-stage" ref={wrapRef}>

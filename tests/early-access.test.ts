@@ -141,7 +141,7 @@ describe("invitations", () => {
     const { token } = await setup();
     expect(await redeemInvite({ store, secret, now: T0 + 10 }, token)).toBe("accepted");
     expect(await redeemInvite({ store, secret, now: T0 + 11 }, token)).toBe("already");
-    expect(await redeemInvite({ store, secret }, token.replace(/.$/, "A"))).toBe("invalid");
+    expect(await redeemInvite({ store, secret }, token.slice(0, -1) + (token.endsWith("A") ? "B" : "A"))).toBe("invalid");
   });
 
   it("rejects expired invitations", async () => {

@@ -2,7 +2,7 @@
 
 Public site and open browser playtest of ONE MORE, a browser-first arcade game by Kartikeya Mishra at SEEVE Tech.
 
-**Stack:** Next.js 16 (App Router, TypeScript) · Firebase App Hosting · Cloud Firestore (Admin SDK, deny-all rules) · Resend (transactional email) · Remotion (launch film in `film/`).
+**Stack:** Next.js 16 (App Router, TypeScript) on Vercel · Cloud Firestore (Admin SDK, deny-all rules) · Resend (transactional email). The Remotion launch film is a separate project (`one-more-film.zip`).
 
 ## What's included
 - **Content for search & AdSense**: 8 original guides (`/guides`) built from engine constants and measured stats (`npm run stats`), changelog, editorial policy; Article/FAQ/VideoGame schema
@@ -11,6 +11,7 @@ Public site and open browser playtest of ONE MORE, a browser-first arcade game b
 - **Viral loop**: spoiler-free share text (Wordle-style) with WhatsApp / X / native share; every share creates a challenge link with its own preview image (`/c/:id/opengraph-image`)
 - **Streaks**: consecutive Daily days, one missed day forgiven
 - **Daily twists**: one rule change per weekday (engine-level, deterministic, replay-verified)
+- **Levels**: 30 deterministic arenas across 10 level types (Boss every 5th), pass marks calibrated by bot simulation (`npm run levels` regenerates `src/content/levels.json`; a test fails if it drifts from the engine), stars, server-side unlocks
 - **Ghost racing**: challenges replay the challenger's verified inputs in lock-step with a live ahead/behind gap (inputs re-verified server-side before they are stored)
 - **Community**: `/community` page, footer channels, and a results-screen prompt shown only after a high moment (never on a first run, once per visit, 7-day snooze). Channels are configured in `src/lib/socials.ts`
 - **Playable game** (`/play`, invite-only): deterministic engine shared by browser and server (`src/game/engine.ts`), Quick Play, Daily Arena (shared seed, resets midnight IST) with leaderboard, synthesized SFX, touch/mouse/keyboard controls, pause, reduce-effects setting
@@ -36,7 +37,7 @@ Public site and open browser playtest of ONE MORE, a browser-first arcade game b
 npm install
 Copy-Item .env.example .env.local
 # .env.example is set up for local development: in-memory data (no Firebase needed) and
-# emails printed in the terminal with clickable links. Production settings live in apphosting.yaml.
+# emails printed in the terminal with clickable links. Production settings live in Vercel environment variables (docs/DEPLOY-VERCEL.md).
 npm run doctor         # checks Node, the install and your .env.local
 npm run verify         # confirms the folder contains ONE MORE only (runs automatically before dev/build)
 npm run verify:fix     # moves files from other projects into _foreign_backup/ (nothing is deleted)
@@ -48,17 +49,14 @@ npm run dev            # http://localhost:3000
 npm run typecheck; npm run lint; npm test; npm run build
 npx playwright install chromium   # once
 npm run test:e2e                  # builds with build:local, then runs Playwright
-npm run test:rules                # Firestore rules on the emulator (needs Java 11+)
 ```
 
 ## Docs
 - `docs/DEPLOY-VERCEL.md` — **Vercel deployment (current)**: domains, env vars, Firestore service account
-- `docs/DEPLOYMENT.md` — Firebase App Hosting alternative
 - `docs/LAUNCH-CHECKLIST.md` — owner actions, security/privacy, SEO/Search Console, AdSense, costs
 - `docs/SEO-ADSENSE-PERFORMANCE.md` — AdSense approval plan, SEO and performance status, Search Console, backlinks
 - `docs/ROADMAP.md` — game integration plan, growth plan, measurement
 - `docs/lighthouse/RESULTS.md` — measured lab results
-- `film/README.md` — launch film
 
 ## Keeping the folder clean
 Extracting a zip never deletes old files, so files from another project can linger and override ONE MORE (a root `app/` folder wins over `src/app/`).

@@ -17,7 +17,7 @@ Google's rejection says a site must (a) provide authentic, high-quality informat
 2. In AdSense → Sites, choose the **Meta tag** or **ads.txt** verification method (both are already live; the site deliberately does not load the ad script on every page).
 3. **Wait for real traffic before requesting review** — the most common reason for "low-value content" on a new domain is too few visitors and too short a history, not missing pages. A practical bar: several weeks live, steady daily visitors from search/social, a couple of new changelog entries or guides added in that time.
 4. In AdSense → Privacy & messaging, enable the **EU consent message** (Google's certified CMP) before ads go live.
-5. After approval: create one **in-article** ad unit, set `NEXT_PUBLIC_ADSENSE_SLOT_CONTENT=<slot id>` and `NEXT_PUBLIC_ADS_ENABLED=true` in `apphosting.yaml`, redeploy.
+5. After approval: create one **in-article** ad unit, set `NEXT_PUBLIC_ADSENSE_SLOT_CONTENT=<slot id>` and `NEXT_PUBLIC_ADS_ENABLED=true` in `Vercel environment variables`, redeploy.
 6. Keep **Auto ads off** (or exclude `/play`, `/c/*`, `/play/sign-in*`). The ad script loads only on pages that contain an ad slot (guides, How to Play), so the game and forms stay ad-free either way.
 
 Never: click your own ads, ask anyone to click, buy traffic, or place ads near game controls.
@@ -45,7 +45,7 @@ Never: click your own ads, ask anyone to click, buy traffic, or place ads near g
 
 ### Search Console (10 minutes)
 1. search.google.com/search-console → Add property → **Domain** → `onemoregame.me` → add the TXT record at your DNS provider (covers www + https).
-   *Or* URL-prefix property → HTML tag → put the token in `NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION` (apphosting.yaml) and redeploy.
+   *Or* URL-prefix property → HTML tag → put the token in `NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION` (Vercel environment variables) and redeploy.
 2. Sitemaps → submit `https://onemoregame.me/sitemap.xml`.
 3. URL inspection → request indexing for `/`, `/play`, `/guides` and each guide.
 4. Check monthly: Pages (indexing), Core Web Vitals, Manual actions, Security issues. Also add the site to Bing Webmaster Tools (import from Search Console).
@@ -77,7 +77,7 @@ Avoid: paid links, link exchanges, PBNs, comment spam, mass directory submission
 | Remove unused deps | All dependencies are used (checked); dev-only tools are devDependencies |
 | Defer non-critical scripts | AdSense `lazyOnload`; no third-party scripts otherwise |
 | Loading skeletons | `/play` and `/c/*` route skeletons, arena placeholder, leaderboard rows |
-| Load balancer | Provided by App Hosting (Cloud Run behind Google's load balancer, autoscaling `maxInstances` in apphosting.yaml) — adding another would be redundant |
+| Load balancer | Provided by App Hosting (Cloud Run behind Google's load balancer, autoscaling `maxInstances` in Vercel environment variables) — adding another would be redundant |
 | Compress payloads | gzip on HTML/JS (verified); App Hosting/CDN adds Brotli |
 | Connection pooling | Single Firestore client per instance (gRPC connection reuse) |
 | Cache computed results | TTL cache (leaderboard, challenge cards); measured stats precomputed at build into `stats.json` |

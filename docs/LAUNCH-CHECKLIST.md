@@ -22,7 +22,7 @@
 - [ ] Remove the "Draft" banner component (`src/components/Legal.tsx`) only after review
 
 ## C. Security & privacy verification
-- [x] Firestore rules deny all client access (rules tests in `tests-rules/`; run `npm run test:rules` where the emulator can be downloaded)
+- [x] Firestore rules deny all client access (deny-all rules in `firestore.rules`; deploy with the Firebase CLI)
 - [x] All writes via server code; tokens stored as SHA-256 hashes; emails keyed by HMAC; IPs only as HMAC for rate limits
 - [x] Single-use, expiring invitations redeemed in a transaction (concurrency test passes)
 - [x] Generic responses for duplicate/existing emails; honeypot returns success

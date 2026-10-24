@@ -7,6 +7,9 @@ import { breadcrumbLd, pageMetadata } from "@/lib/seo";
 import Link from "next/link";
 import { site } from "@/lib/site";
 import { TWISTS, WEEKDAY_TWIST } from "@/game/engine";
+import { LEVEL_KINDS } from "@/game/levels";
+
+const LEVEL_KIND_LIST = Object.values(LEVEL_KINDS);
 
 export const metadata = pageMetadata(
   "/how-to-play",
@@ -93,6 +96,12 @@ export default function HowToPlay() {
           <p>A random arena each time. Best for practice and chasing your personal best.</p>
           <h3>Daily Arena <StatusPill status="playtest" /></h3>
           <p>Each day (resetting at midnight India time) uses one seed, so every player gets an identical arena: same shard spawns, same hazard paths. Unlimited attempts; your best run of the day goes on the leaderboard. Because the layout is shared, you can learn a route and compare scores fairly.</p>
+          <h3>Levels <StatusPill status="playtest" /></h3>
+          <p>Thirty fixed arenas, each with its own rule set and a <strong>pass mark</strong>. Reach the target to unlock the next level; hit the higher marks for two and three stars. The arena for each level is the same for everyone, so you can learn it.</p>
+          <ul>
+            {LEVEL_KIND_LIST.map((k) => <li key={k.id}><strong>{k.name}</strong>: {k.description}</li>)}
+          </ul>
+          <p>Every fifth level is a <strong>Boss Arena</strong>. Targets were set by simulating many runs of each arena with a consistent test player, then scaled up level by level, so early levels are a fair warm-up and later ones demand clean combos and power-up use. Guests can try Level 1; confirm your email to save progress.</p>
           <h3>Friend challenges <StatusPill status="playtest" /></h3>
           <p>After a run, tap <strong>Share result</strong>. Your friend opens the link and plays the same arena, with the same twist, against your score — with your <strong>ghost</strong> racing alongside them and a live &ldquo;ahead / behind&rdquo; gap. No sign-up needed. Challenge links show only your leaderboard name, never your email.</p>
           <h3>Campus Clash <StatusPill status="planned" /></h3>

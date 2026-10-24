@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { signOutAction } from "@/app/actions";
 import { PlayClient } from "@/game/PlayClient";
+import { allLevels } from "@/game/levels";
+import { RUN_TICKS, TPS } from "@/game/engine";
 import { currentStreak, dailyTwist, dayKey, getPlayer, twistInfo } from "@/lib/game-service";
 import { pageMetadata, videoGameLd } from "@/lib/seo";
 import { JsonLd } from "@/components/JsonLd";
@@ -40,7 +42,10 @@ export default async function PlayPage() {
         {unavailable ? (
           <div className="notice notice--err" role="alert"><strong>Temporarily unavailable</strong>Please try again in a few minutes.</div>
         ) : (
-          <PlayClient dailyTwist={twistInfo(dailyTwist(dayKey()))} player={player ? { displayName: player.displayName, bestScore: player.bestScore, streak: currentStreak(player, dayKey()) } : null} />
+          <PlayClient
+            dailyTwist={twistInfo(dailyTwist(dayKey()))}
+            levels={allLevels().map((l) => ({ n: l.n, kind: l.kind, name: l.name, description: l.description, target: l.target, stars: l.stars, seconds: Math.round((l.rules.durationTicks ?? RUN_TICKS) / TPS) }))}
+            levelProgress={player?.levels ?? null} player={player ? { displayName: player.displayName, bestScore: player.bestScore, streak: currentStreak(player, dayKey()) } : null} />
         )}
       </div>
     </section>
