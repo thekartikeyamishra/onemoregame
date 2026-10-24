@@ -10,6 +10,7 @@ const [major, minor] = process.versions.node.split(".").map(Number);
 if (major > 20 || (major === 20 && minor >= 9)) ok(`Node ${process.versions.node}`);
 else bad(`Node ${process.versions.node} is too old`, "Install Node 20.9+ (22 LTS recommended).");
 
+for (const f of ["app", "postcss.config.mjs", "postcss.config.js", "tailwind.config.ts", "tailwind.config.js"]) if (existsSync(f)) bad(`"${f}" belongs to another project and overrides this site`, `Remove-Item -Recurse -Force ${f}   (run npm run doctor again afterwards)`);
 if (!existsSync("src/app/api/health/route.ts")) bad("This folder has an older version of the code", "Extract the latest zip so its files land directly in this folder (package.json should be replaced).");
 const need = ["next/dist/lib/constants.js", "next/dist/bin/next", "react/package.json", "firebase-admin/package.json", "zod/package.json"];
 const missing = need.filter((f) => !existsSync(`node_modules/${f}`));

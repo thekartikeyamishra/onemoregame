@@ -19,3 +19,4 @@ film/out/
 .e2e/
 test-results/
 playwright-report/
+_foreign_backup/

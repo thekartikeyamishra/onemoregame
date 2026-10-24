@@ -38,6 +38,8 @@ Copy-Item .env.example .env.local
 # .env.example is set up for local development: in-memory data (no Firebase needed) and
 # emails printed in the terminal with clickable links. Production settings live in apphosting.yaml.
 npm run doctor         # checks Node, the install and your .env.local
+npm run verify         # confirms the folder contains ONE MORE only (runs automatically before dev/build)
+npm run verify:fix     # moves files from other projects into _foreign_backup/ (nothing is deleted)
 npm run dev            # http://localhost:3000
 ```
 
@@ -57,3 +59,8 @@ npm run test:rules                # Firestore rules on the emulator (needs Java 
 - `docs/ROADMAP.md` — game integration plan, growth plan, measurement
 - `docs/lighthouse/RESULTS.md` — measured lab results
 - `film/README.md` — launch film
+
+## Keeping the folder clean
+Extracting a zip never deletes old files, so files from another project can linger and override ONE MORE (a root `app/` folder wins over `src/app/`).
+`npm run dev` and `npm run build` refuse to run when that happens; `npm run verify:fix` moves the foreign files to `_foreign_backup/`.
+After intentionally adding or removing files under `src/`, `public/`, `tests/` or `e2e/`, run `npm run manifest`.

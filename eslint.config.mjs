@@ -4,6 +4,6 @@ import ts from "eslint-config-next/typescript";
 const config = [
   ...next,
   ...ts,
-  { ignores: [".next/**", "node_modules/**", "film/**", "next-env.d.ts"] },
+  { ignores: [".next/**", "node_modules/**", "film/**", "_foreign_backup/**", "next-env.d.ts"] },
 ];
 export default config;

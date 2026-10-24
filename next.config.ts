@@ -1,4 +1,19 @@
 import type { NextConfig } from "next";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
+
+// ---- Project guard -----------------------------------------------------------------------------
+// Next.js automatically uses a root-level app/ or pages/ folder (instead of src/app) and any PostCSS/Tailwind
+// config it finds. Files like these from another project silently replace ONE MORE, so refuse to start.
+const FOREIGN = ["app", "pages", "src/pages", "postcss.config.js", "postcss.config.mjs", "postcss.config.cjs", "postcss.config.ts",
+  "tailwind.config.js", "tailwind.config.mjs", "tailwind.config.cjs", "tailwind.config.ts"].filter((p) => existsSync(join(process.cwd(), p)));
+if (FOREIGN.length) {
+  throw new Error(
+    `\n\n  This folder contains files from another project that override ONE MORE:\n    ${FOREIGN.join("\n    ")}\n\n` +
+    "  Fix: stop the dev server (Ctrl+C), then run:  npm run verify:fix\n" +
+    "  (moves them into _foreign_backup/ — nothing is deleted), then start again with:  npm run dev\n",
+  );
+}
 
 const adsEnabled = process.env.NEXT_PUBLIC_ADS_ENABLED === "true";
 const isDev = process.env.NODE_ENV !== "production";
