@@ -4,12 +4,14 @@ import { PageHero } from "@/components/PageHero";
 import { breadcrumbLd, pageMetadata } from "@/lib/seo";
 import { site } from "@/lib/site";
 import { STUDIO } from "@/lib/socials";
+import { AdsenseScript } from "@/components/AdsenseScript";
 
 export const metadata = pageMetadata("/editorial-policy", "Editorial policy", "How ONE MORE guides are researched, tested, written and corrected, and how advertising is kept separate from content.");
 
 export default function EditorialPolicy() {
   return (
     <>
+      <AdsenseScript />
       <JsonLd data={breadcrumbLd("/editorial-policy", "Editorial policy")} />
       <PageHero eyebrow="Editorial policy" title="How we write our guides" />
       <div className="section">

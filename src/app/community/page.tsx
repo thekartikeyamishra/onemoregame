@@ -3,6 +3,7 @@ import { PageHero } from "@/components/PageHero";
 import { SocialIcon } from "@/components/SocialIcon";
 import { breadcrumbLd, pageMetadata } from "@/lib/seo";
 import { STUDIO, socialOrder, socials } from "@/lib/socials";
+import { AdsenseScript } from "@/components/AdsenseScript";
 
 export const metadata = pageMetadata(
   "/community",
@@ -14,6 +15,7 @@ export default function Community() {
   const [first, ...rest] = socialOrder;
   return (
     <>
+      <AdsenseScript />
       <JsonLd data={breadcrumbLd("/community", "Community")} />
       <PageHero eyebrow="Community" title="Play together, one more time">
         <p>Every channel has a job. Follow the ones that are useful to you — nothing in the game depends on it.</p>

@@ -4,6 +4,7 @@ import { PageHero } from "@/components/PageHero";
 import { breadcrumbLd, pageMetadata } from "@/lib/seo";
 import { site } from "@/lib/site";
 import { STUDIO, socials } from "@/lib/socials";
+import { AdsenseScript } from "@/components/AdsenseScript";
 
 export const metadata = pageMetadata(
   "/about",
@@ -21,6 +22,7 @@ const stages = [
 export default function About() {
   return (
     <>
+      <AdsenseScript />
       <JsonLd data={breadcrumbLd("/about", "About")} />
       <PageHero eyebrow="About" title="Small game, big “one more”">
         <p>ONE MORE is an independent browser arcade game {site.operatorName ? <>by {site.operatorName}</> : null}, built around a simple idea: the best competitive games are the ones you can start in a second and understand in five.</p>

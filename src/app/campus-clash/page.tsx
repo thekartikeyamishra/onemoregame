@@ -4,6 +4,7 @@ import { JsonLd } from "@/components/JsonLd";
 import { PageHero } from "@/components/PageHero";
 import { StatusPill } from "@/components/StatusPill";
 import { breadcrumbLd, pageMetadata } from "@/lib/seo";
+import { AdsenseScript } from "@/components/AdsenseScript";
 
 export const metadata = pageMetadata(
   "/campus-clash",
@@ -14,6 +15,7 @@ export const metadata = pageMetadata(
 export default function CampusClash() {
   return (
     <>
+      <AdsenseScript />
       <JsonLd data={breadcrumbLd("/campus-clash", "Campus Clash")} />
       <PageHero eyebrow="Campus Clash · Planned" title="Tournaments that fit in a lunch break">
         <p>One-minute runs make competitions easy to run anywhere with a projector and Wi-Fi. This is the plan; event registration is not open yet, and no institutions are partners today.</p>

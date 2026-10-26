@@ -4,6 +4,7 @@ import { PageHero } from "@/components/PageHero";
 import { guides } from "@/content/guides";
 import { absoluteUrl } from "@/lib/site";
 import { breadcrumbLd, pageMetadata } from "@/lib/seo";
+import { AdsenseScript } from "@/components/AdsenseScript";
 
 export const metadata = pageMetadata(
   "/guides",
@@ -16,6 +17,7 @@ const order = ["Getting better", "Strategy", "Organizers", "Behind the game"] as
 export default function GuidesIndex() {
   return (
     <>
+      <AdsenseScript />
       <JsonLd data={breadcrumbLd("/guides", "Guides")} />
       <JsonLd data={{
         "@context": "https://schema.org", "@type": "ItemList", name: "ONE MORE guides",

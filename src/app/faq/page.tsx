@@ -3,6 +3,7 @@ import { JsonLd } from "@/components/JsonLd";
 import { PageHero } from "@/components/PageHero";
 import { faqs, type FaqItem } from "@/lib/content";
 import { breadcrumbLd, pageMetadata } from "@/lib/seo";
+import { AdsenseScript } from "@/components/AdsenseScript";
 
 export const metadata = pageMetadata(
   "/faq",
@@ -15,6 +16,7 @@ const groups: FaqItem["group"][] = ["Game", "Early access", "Campus Clash", "Dev
 export default function FaqPage() {
   return (
     <>
+      <AdsenseScript />
       <JsonLd data={breadcrumbLd("/faq", "FAQ")} />
       <JsonLd data={{
         "@context": "https://schema.org", "@type": "FAQPage",

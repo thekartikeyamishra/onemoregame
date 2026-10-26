@@ -2,12 +2,14 @@ import { ContactLink, LegalDraftBanner, Operator } from "@/components/Legal";
 import { PageHero } from "@/components/PageHero";
 import { pageMetadata } from "@/lib/seo";
 import { site } from "@/lib/site";
+import { AdsenseScript } from "@/components/AdsenseScript";
 
 export const metadata = pageMetadata("/terms", "Terms of Use", "Terms for using the ONE MORE website, early-access list and playtests, including limitations of an unfinished product.");
 
 export default function Terms() {
   return (
     <>
+      <AdsenseScript />
       <PageHero eyebrow="Legal" title="Terms of use" />
       <div className="section">
         <div className="container prose">

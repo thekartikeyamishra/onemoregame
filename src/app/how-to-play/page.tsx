@@ -8,6 +8,7 @@ import Link from "next/link";
 import { site } from "@/lib/site";
 import { TWISTS, WEEKDAY_TWIST } from "@/game/engine";
 import { LEVEL_KINDS } from "@/game/levels";
+import { AdsenseScript } from "@/components/AdsenseScript";
 
 const LEVEL_KIND_LIST = Object.values(LEVEL_KINDS);
 
@@ -20,6 +21,7 @@ export const metadata = pageMetadata(
 export default function HowToPlay() {
   return (
     <>
+      <AdsenseScript />
       <JsonLd data={breadcrumbLd("/how-to-play", "How to Play")} />
       <PageHero eyebrow="Game guide" title="How ONE MORE plays">
         <p>These are the live playtest rules. Numbers may change as playtests show what feels fair; anything not yet playable is labelled.</p>

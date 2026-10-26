@@ -1,6 +1,6 @@
 "use client";
 
-import Script from "next/script";
+import { AdsenseScript } from "./AdsenseScript";
 import { useEffect, useRef } from "react";
 import { site } from "@/lib/site";
 
@@ -9,10 +9,9 @@ declare global {
 }
 
 /**
- * One manual, clearly labelled in-content ad unit. Renders nothing unless NEXT_PUBLIC_ADS_ENABLED=true, the
- * publisher ID is set and a numeric slot ID is configured. The AdSense script is loaded only by this component,
- * so pages without an ad slot (the game, forms, sign-in, challenges) never load ad code — even if Auto ads are
- * switched on in the AdSense dashboard. Use only inside substantial content (guides, How to Play).
+ * One manual, clearly labelled in-content ad unit. Renders nothing unless NEXT_PUBLIC_ADS_ENABLED=true and a numeric
+ * slot ID is configured. Use only inside substantial content (guides, How to Play). Content pages also render
+ * <AdsenseScript /> so Auto ads work there; the game, forms, sign-in and challenges never load ad code.
  */
 export function AdSlot({ slot }: { slot: string }) {
   const ref = useRef<HTMLModElement>(null);
@@ -28,7 +27,7 @@ export function AdSlot({ slot }: { slot: string }) {
   if (!enabled) return null;
   return (
     <aside className="ad-slot" aria-label="Advertisement">
-      <Script id="adsbygoogle-js" strategy="lazyOnload" crossOrigin="anonymous" src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${site.ads.client}`} />
+      <AdsenseScript />
       <ins ref={ref} className="adsbygoogle" style={{ display: "block", minHeight: 250 }} data-ad-client={site.ads.client!} data-ad-slot={slot} data-ad-format="auto" data-full-width-responsive="true" />
     </aside>
   );

@@ -14,6 +14,7 @@ import { STUDIO, socialOrder, socials } from "@/lib/socials";
 import { videoGameLd } from "@/lib/seo";
 import { absoluteUrl } from "@/lib/site";
 import { guides } from "@/content/guides";
+import { AdsenseScript } from "@/components/AdsenseScript";
 
 export const metadata = pageMetadata(
   "/",
@@ -26,6 +27,7 @@ const homeFaq = faqs.filter((f) => ["Is ONE MORE playable today?", "What happens
 export default function Home() {
   return (
     <>
+      <AdsenseScript />
       <JsonLd
         data={{
           "@context": "https://schema.org",

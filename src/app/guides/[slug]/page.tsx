@@ -8,6 +8,7 @@ import { getGuide, guides } from "@/content/guides";
 import { absoluteUrl, site } from "@/lib/site";
 import { pageMetadata } from "@/lib/seo";
 import { STUDIO, socials } from "@/lib/socials";
+import { AdsenseScript } from "@/components/AdsenseScript";
 
 type Params = { params: Promise<{ slug: string }> };
 
@@ -30,6 +31,7 @@ export default async function GuidePage({ params }: Params) {
   const related = g.related.map(getGuide).filter((x): x is NonNullable<typeof x> => Boolean(x));
   return (
     <>
+      <AdsenseScript />
       <JsonLd data={{
         "@context": "https://schema.org",
         "@graph": [

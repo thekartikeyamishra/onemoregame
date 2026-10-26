@@ -2,12 +2,14 @@ import { ContactLink, LegalDraftBanner, Operator } from "@/components/Legal";
 import { PageHero } from "@/components/PageHero";
 import { pageMetadata } from "@/lib/seo";
 import { site } from "@/lib/site";
+import { AdsDisclosure, AdsenseScript } from "@/components/AdsenseScript";
 
 export const metadata = pageMetadata("/privacy", "Privacy Notice", "What personal data ONE MORE collects for early access and Campus Clash interest, why, who processes it, how long it's kept and how to delete it.");
 
 export default function Privacy() {
   return (
     <>
+      <AdsenseScript />
       <PageHero eyebrow="Legal" title="Privacy notice" />
       <div className="section">
         <div className="container prose">
@@ -35,13 +37,19 @@ export default function Privacy() {
 
           <h2>Who processes it</h2>
           <ul>
-            <li><strong>Google (Firebase / Google Cloud)</strong>: hosting and database (Cloud Firestore).</li>
+            <li><strong>Vercel</strong>: website hosting and delivery.</li>
+            <li><strong>Google (Firebase / Google Cloud)</strong>: database (Cloud Firestore).</li>
             <li><strong>Our transactional email provider (Resend)</strong>: delivering confirmation, invitation and optional update emails.</li>
           </ul>
           <p>These providers may process data outside India, including in the United States, under their own safeguards. We don&apos;t sell personal data or share it with advertisers.</p>
 
           <h2>Analytics, cookies and ads</h2>
-          <p>The site uses one strictly necessary sign-in cookie for confirmed players and no analytics, advertising or tracking cookies. See the <a href="/cookies">cookie notice</a>. If that changes, we&apos;ll update this notice and ask for consent where required before anything non-essential runs.</p>
+          {site.ads.enabled ? (
+            <p>We use one strictly necessary sign-in cookie for confirmed players and no analytics of our own. Content pages show Google ads, described below and in the <a href="/cookies">cookie notice</a>.</p>
+          ) : (
+            <p>The site uses one strictly necessary sign-in cookie for confirmed players and no analytics, advertising or tracking cookies. See the <a href="/cookies">cookie notice</a>. If that changes, we&apos;ll update this notice and ask for consent where required before anything non-essential runs.</p>
+          )}
+          <AdsDisclosure />
 
           <h2>How long we keep it</h2>
           <ul>

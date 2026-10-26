@@ -2,12 +2,14 @@ import { JsonLd } from "@/components/JsonLd";
 import { PageHero } from "@/components/PageHero";
 import { changelog } from "@/content/changelog";
 import { breadcrumbLd, pageMetadata } from "@/lib/seo";
+import { AdsenseScript } from "@/components/AdsenseScript";
 
 export const metadata = pageMetadata("/changelog", "Changelog: what's new in ONE MORE", "A dated log of every ONE MORE release: new modes, power-ups, Daily twists, anti-cheat changes and guides.");
 
 export default function Changelog() {
   return (
     <>
+      <AdsenseScript />
       <JsonLd data={breadcrumbLd("/changelog", "Changelog")} />
       <PageHero eyebrow="Development log" title="What's new">
         <p>Every user-visible change, newest first.</p>

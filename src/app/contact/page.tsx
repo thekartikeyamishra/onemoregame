@@ -2,12 +2,14 @@ import { JsonLd } from "@/components/JsonLd";
 import { PageHero } from "@/components/PageHero";
 import { breadcrumbLd, pageMetadata } from "@/lib/seo";
 import { site } from "@/lib/site";
+import { AdsenseScript } from "@/components/AdsenseScript";
 
 export const metadata = pageMetadata("/contact", "Contact", "How to contact the ONE MORE team about early access, Campus Clash, press, privacy requests or bug reports.");
 
 export default function Contact() {
   return (
     <>
+      <AdsenseScript />
       <JsonLd data={breadcrumbLd("/contact", "Contact")} />
       <PageHero eyebrow="Contact" title="Get in touch" />
       <div className="section">

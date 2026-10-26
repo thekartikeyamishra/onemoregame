@@ -22,6 +22,15 @@ Google's rejection says a site must (a) provide authentic, high-quality informat
 
 Never: click your own ads, ask anyone to click, buy traffic, or place ads near game controls.
 
+### Turning ads on (Vercel)
+1. Vercel → Settings → Environment Variables: `NEXT_PUBLIC_ADS_ENABLED=true` (Production). Leave `NEXT_PUBLIC_ADSENSE_CLIENT` empty (defaults to `ca-pub-4557897331416844`).
+2. Create a new deployment from `main` (public variables are baked in at build time).
+3. Check: view-source of `/guides/beginners-guide` shows the `adsbygoogle.js?client=ca-pub-4557897331416844` tag in `<head>`; `/play` does not; `/privacy` shows the Advertising section; `/ads.txt` is correct.
+4. AdSense → Sites → onemoregame.me → Verify (snippet or meta tag both work) → Request review.
+5. AdSense → Privacy & messaging → create the European regulations (GDPR) message (Google-certified CMP). Required for EEA/UK/CH visitors.
+6. Auto ads (optional, more revenue): Ads → By site → onemoregame.me → Auto ads ON, **anchor ads OFF, side rails OFF** (they can cover the game's touch controls), in-page and vignette ON. Ad code only loads on content pages, so Auto ads can't reach the game.
+7. After approval, for the manual in-content unit: Ads → By ad unit → Display ads → copy `data-ad-slot` → `NEXT_PUBLIC_ADSENSE_SLOT_CONTENT` → redeploy.
+
 ## 2. SEO checklist (status)
 
 | Item | Status |

@@ -20,7 +20,7 @@ const isDev = process.env.NODE_ENV !== "production";
 // Production defaults to https://onemoregame.me. Local production builds (e2e, Lighthouse) set NEXT_PUBLIC_SITE_URL=http://localhost:…
 const httpsSite = !isDev && (process.env.NEXT_PUBLIC_SITE_URL || "https://onemoregame.me").startsWith("https://");
 const adHosts = adsEnabled
-  ? " https://pagead2.googlesyndication.com https://*.googlesyndication.com https://*.doubleclick.net https://*.google.com https://*.gstatic.com https://*.adtrafficquality.google"
+  ? " https://pagead2.googlesyndication.com https://*.googlesyndication.com https://*.doubleclick.net https://*.google.com https://*.gstatic.com https://*.adtrafficquality.google https://*.googleadservices.com https://*.googletagservices.com"
   : "";
 
 // 'unsafe-inline' for scripts is needed by Next.js inline bootstrap/JSON-LD without per-request nonces

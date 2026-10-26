@@ -3,6 +3,7 @@ import { JsonLd } from "@/components/JsonLd";
 import { PageHero } from "@/components/PageHero";
 import { breadcrumbLd, pageMetadata } from "@/lib/seo";
 import { site } from "@/lib/site";
+import { AdsenseScript } from "@/components/AdsenseScript";
 
 export const metadata = pageMetadata(
   "/fair-play",
@@ -13,6 +14,7 @@ export const metadata = pageMetadata(
 export default function FairPlay() {
   return (
     <>
+      <AdsenseScript />
       <JsonLd data={breadcrumbLd("/fair-play", "Fair Play")} />
       <PageHero eyebrow="Community" title="Fair play rules">
         <p>Competition only works if a score means the same thing for everyone. These principles apply to every mode as it launches.</p>
