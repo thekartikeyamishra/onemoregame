@@ -15,7 +15,12 @@ export type FunnelEvent =
   | "friend_challenge_opened"
   | "share_clicked"
   | "social_clicked"
-  | "guest_claim_started";
+  | "guest_claim_started"
+  | "battle_created"
+  | "battle_joined"
+  | "battle_started"
+  | "battle_finished"
+  | "battle_invite_shared";
 
 declare global {
   interface Window { dataLayer?: unknown[] }

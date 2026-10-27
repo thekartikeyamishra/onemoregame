@@ -47,6 +47,7 @@ export function SiteFooter() {
               <li><Link href="/faq">FAQ</Link></li>
               <li><Link href="/community">Community</Link></li>
               <li><Link href="/changelog">Changelog</Link></li>
+              <li><Link href="/developers">AI assistants (MCP)</Link></li>
               <li><Link href="/contact">Contact</Link></li>
             </ul>
           </nav>

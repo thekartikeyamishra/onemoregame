@@ -8,7 +8,7 @@ export function GET() {
 
 > ${site.description}
 
-Status (${site.contentUpdated}): open browser playtest. Anyone can play the daily shared arena and friend challenges with no sign-up; confirming an email unlocks Quick Play, the leaderboard, streaks and saved scores. Four power-ups, a different Daily twist each weekday, and a 30-level campaign with target scores and stars. Friend challenges show the challenger's ghost. Scores are server-verified by replay. No mobile apps yet. Campus Clash is planned. Made by Kartikeya Mishra at SEEVE Tech.
+Status (${site.contentUpdated}): open browser playtest. Anyone can play the daily shared arena and friend challenges with no sign-up; confirming an email unlocks Quick Play, the leaderboard, streaks and saved scores. Four power-ups, a different Daily twist each weekday, a 30-level campaign with target scores and stars, and Battle mode (multiplayer attackers vs defenders, 1v1 to 5v5, AI players, at /battle). Friend challenges show the challenger's ghost. Scores are server-verified by replay. No mobile apps yet. Campus Clash is planned. Made by Kartikeya Mishra at SEEVE Tech.
 
 ## Pages
 - [Play](${absoluteUrl("/play")}): play today's Daily Arena in the browser
@@ -21,6 +21,7 @@ Status (${site.contentUpdated}): open browser playtest. Anyone can play the dail
 - [Fair Play](${absoluteUrl("/fair-play")}): competition and anti-cheating rules
 - [FAQ](${absoluteUrl("/faq")})
 - [About](${absoluteUrl("/about")})
+- [MCP server for AI assistants](${absoluteUrl("/developers")}): read-only endpoint ${absoluteUrl("/api/mcp")} (Daily Arena, leaderboard, levels, rules, challenges)
 - [Privacy](${absoluteUrl("/privacy")})
 `;
   return new Response(body, { headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "public, max-age=3600" } });

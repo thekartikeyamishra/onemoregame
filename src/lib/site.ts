@@ -46,13 +46,14 @@ export const site = {
     },
   },
   /** Last substantive content review date; update when public content changes materially. */
-  contentUpdated: "2026-10-24",
+  contentUpdated: "2026-10-27",
 } as const;
 
 /** Public, indexable routes. The sitemap is generated from this list only. */
 export const publicRoutes = [
   { path: "/", priority: 1.0 },
   { path: "/play", priority: 0.9 },
+  { path: "/battle", priority: 0.9 },
   { path: "/guides", priority: 0.9 },
   { path: "/changelog", priority: 0.5 },
   { path: "/editorial-policy", priority: 0.3 },
@@ -67,9 +68,10 @@ export const publicRoutes = [
   { path: "/privacy", priority: 0.3 },
   { path: "/terms", priority: 0.3 },
   { path: "/cookies", priority: 0.2 },
+  { path: "/developers", priority: 0.4 },
 ] as const;
 
-export const privateRoutePrefixes = ["/verify", "/invite", "/unsubscribe", "/r/", "/api/", "/play/", "/c/"] as const;
+export const privateRoutePrefixes = ["/verify", "/invite", "/unsubscribe", "/r/", "/api/", "/play/", "/c/", "/b/"] as const;
 
 export function absoluteUrl(path: string): string {
   return `${site.url}${path === "/" ? "" : path}` || site.url;

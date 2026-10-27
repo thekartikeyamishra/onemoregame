@@ -36,7 +36,7 @@ async function becomePlaytester(page: Page, email: string) {
 test("guests can start today's Daily Arena but not Quick Play", async ({ page, request }) => {
   await page.goto("/play");
   await expect(page.getByRole("heading", { name: "Today's arena" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Today's Daily Arena" })).toBeVisible(); // public leaderboard
+  await expect(page.getByRole("heading", { name: "Leaderboard" })).toBeVisible(); // public leaderboard
   expect((await request.post("/api/game/start", { data: { mode: "daily" } })).status()).toBe(200);
   expect((await request.post("/api/game/start", { data: { mode: "quick" } })).status()).toBe(401);
   expect((await request.post("/api/game/start", { data: { mode: "challenge", challengeId: "abcdefghjk" } })).status()).toBe(404);
@@ -116,9 +116,9 @@ test("a playtester can sign in on another device with an email link", async ({ p
 test("tampered scores are rejected by the server", async ({ page }) => {
   await becomePlaytester(page, "player4@example.com");
   const start = await (await page.request.post("/api/game/start", { data: { mode: "quick" } })).json();
-  const res = await page.request.post("/api/game/finish", { data: { runId: start.runId, inputs: [], score: 999999, version: 3 } });
+  const res = await page.request.post("/api/game/finish", { data: { runId: start.runId, ticket: start.ticket, inputs: [], score: 999999, version: 3 } });
   expect(res.status()).toBe(422);
-  const old = await page.request.post("/api/game/finish", { data: { runId: start.runId, inputs: [], score: 0, version: 2 } });
+  const old = await page.request.post("/api/game/finish", { data: { runId: start.runId, ticket: start.ticket, inputs: [], score: 0, version: 2 } });
   expect(old.status()).toBe(409); // outdated client is told to refresh
 });
 

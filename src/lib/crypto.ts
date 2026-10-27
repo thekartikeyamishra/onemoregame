@@ -26,3 +26,8 @@ export function safeEqual(a: string, b: string): boolean {
   const bb = Buffer.from(b);
   return ab.length === bb.length && timingSafeEqual(ab, bb);
 }
+
+/** Uniform random 32-bit unsigned integer. */
+export function randomBytesInt(): number {
+  return randomBytes(4).readUInt32BE(0);
+}

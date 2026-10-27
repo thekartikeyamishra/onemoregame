@@ -1,6 +1,7 @@
 import { readJson, json } from "@/lib/api";
 import { finishRun } from "@/lib/game-service";
-import { logError, serverCtx } from "@/lib/server";
+import { allowLocal, logError, serverCtx } from "@/lib/server";
+import { limits } from "@/lib/rate-limit";
 import { currentPlayer } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -19,6 +20,7 @@ export async function POST(req: Request) {
   if ("error" in parsed) return parsed.error;
   try {
     const ctx = await serverCtx();
+    if (!allowLocal(ctx, limits.runFinishPerIp, req.headers)) return json({ error: "Too many runs. Take a short break." }, 429);
     const signupId = await currentPlayer(ctx);
     const r = await finishRun(ctx, signupId, parsed.body as never);
     if (r.status !== "ok") { const [code, msg] = messages[r.status]; return json({ error: msg, status: r.status }, code); }

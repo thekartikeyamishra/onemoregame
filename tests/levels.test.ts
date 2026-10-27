@@ -49,7 +49,7 @@ describe("level table", () => {
   it("level rules change the run (duration, determinism)", () => {
     const sprint = allLevels().find((l) => l.kind === "sprint")!;
     const r = bot(sprint.seed, sprint.rules);
-    expect(r.ticks).toBeLessThanOrEqual(sprint.rules.durationTicks!); // a run can end early on lives
+    expect(r.ticks).toBeLessThanOrEqual(sprint.rules.durationTicks!); // hits cost time, so a run can end early
     expect(replay(sprint.seed, r.inputs, "classic", sprint.rules).score).toBe(r.score);
   });
 });
@@ -79,7 +79,7 @@ describe("level progress", () => {
     expect(start.seed).toBe(def.seed);
     expect(start.level).toMatchObject({ n: 1, target: def.target });
     const run = bot(start.seed, start.rules);
-    const res = await finishRun({ store, secret, now: T0 + 70_000 }, id, { runId: start.runId, inputs: run.inputs, score: run.score, version: ENGINE_VERSION });
+    const res = await finishRun({ store, secret, now: T0 + 70_000 }, id, { runId: start.runId, ticket: start.ticket, inputs: run.inputs, score: run.score, version: ENGINE_VERSION });
     if (res.status !== "ok") throw new Error(res.status);
     expect(res.level).toMatchObject({ n: 1, passed: run.score >= def.target, best: run.score });
     const player = await store.get<{ levels: { unlocked: number } }>(C.players, id);
@@ -90,7 +90,7 @@ describe("level progress", () => {
     const start = await startRun({ store, secret, now: T0 }, null, "level", null, 1);
     if ("error" in start) throw new Error("start failed");
     const run = bot(start.seed, start.rules);
-    const res = await finishRun({ store, secret, now: T0 + 70_000 }, null, { runId: start.runId, inputs: run.inputs, score: run.score + 50, version: ENGINE_VERSION });
+    const res = await finishRun({ store, secret, now: T0 + 70_000 }, null, { runId: start.runId, ticket: start.ticket, inputs: run.inputs, score: run.score + 50, version: ENGINE_VERSION });
     expect(res.status).not.toBe("ok");
   });
 });

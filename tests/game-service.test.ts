@@ -42,7 +42,7 @@ async function playRun(signupId: string | null, mode: "quick" | "daily" | "chall
   const start = await startRun({ store, secret, now }, signupId, mode, challengeId);
   if ("error" in start) throw new Error("start failed");
   const run = simulate(start.seed, variant, start.twist.id);
-  const res = await finishRun({ store, secret, now: now + 70_000 }, signupId, { runId: start.runId, inputs: run.inputs, score: run.score, version: ENGINE_VERSION });
+  const res = await finishRun({ store, secret, now: now + 70_000 }, signupId, { runId: start.runId, ticket: start.ticket, inputs: run.inputs, score: run.score, version: ENGINE_VERSION });
   return { start, run, res };
 }
 
@@ -96,10 +96,10 @@ describe("runs", () => {
     const start = await startRun({ store, secret, now: T0 }, id, "quick");
     if ("error" in start) throw new Error();
     const run = simulate(start.seed, 0, start.twist.id);
-    expect((await finishRun({ store, secret, now: T0 + 70_000 }, id, { runId: start.runId, inputs: run.inputs, score: run.score + 10, version: ENGINE_VERSION })).status).toBe("mismatch");
-    expect((await finishRun({ store, secret, now: T0 + 1_000 }, id, { runId: start.runId, inputs: run.inputs, score: run.score, version: ENGINE_VERSION })).status).toBe("too-fast");
-    expect((await finishRun({ store, secret, now: T0 + 70_000 }, id, { runId: start.runId, inputs: run.inputs, score: run.score, version: ENGINE_VERSION })).status).toBe("ok");
-    expect((await finishRun({ store, secret, now: T0 + 80_000 }, id, { runId: start.runId, inputs: run.inputs, score: run.score, version: ENGINE_VERSION })).status).toBe("expired");
+    expect((await finishRun({ store, secret, now: T0 + 70_000 }, id, { runId: start.runId, ticket: start.ticket, inputs: run.inputs, score: run.score + 10, version: ENGINE_VERSION })).status).toBe("mismatch");
+    expect((await finishRun({ store, secret, now: T0 + 1_000 }, id, { runId: start.runId, ticket: start.ticket, inputs: run.inputs, score: run.score, version: ENGINE_VERSION })).status).toBe("too-fast");
+    expect((await finishRun({ store, secret, now: T0 + 70_000 }, id, { runId: start.runId, ticket: start.ticket, inputs: run.inputs, score: run.score, version: ENGINE_VERSION })).status).toBe("ok");
+    expect((await finishRun({ store, secret, now: T0 + 80_000 }, id, { runId: start.runId, ticket: start.ticket, inputs: run.inputs, score: run.score, version: ENGINE_VERSION })).status).toBe("expired");
   });
 
   it("rejects another session's run and malformed payloads", async () => {
@@ -107,9 +107,9 @@ describe("runs", () => {
     const start = await startRun({ store, secret, now: T0 }, id, "quick");
     if ("error" in start) throw new Error();
     const run = simulate(start.seed, 0, start.twist.id);
-    expect((await finishRun({ store, secret, now: T0 + 70_000 }, "someone-else", { runId: start.runId, inputs: run.inputs, score: run.score, version: ENGINE_VERSION })).status).toBe("forbidden");
-    expect((await finishRun({ store, secret }, id, { runId: start.runId, inputs: [1, 2], score: 1, version: ENGINE_VERSION })).status).toBe("invalid");
-    expect((await finishRun({ store, secret }, id, { runId: start.runId, inputs: run.inputs, score: run.score, version: 999 })).status).toBe("outdated");
+    expect((await finishRun({ store, secret, now: T0 + 70_000 }, "someone-else", { runId: start.runId, ticket: start.ticket, inputs: run.inputs, score: run.score, version: ENGINE_VERSION })).status).toBe("forbidden");
+    expect((await finishRun({ store, secret }, id, { runId: start.runId, ticket: start.ticket, inputs: [1, 2], score: 1, version: ENGINE_VERSION })).status).toBe("invalid");
+    expect((await finishRun({ store, secret }, id, { runId: start.runId, ticket: start.ticket, inputs: run.inputs, score: run.score, version: 999 })).status).toBe("outdated");
   });
 
   it("daily arena: same seed for everyone, best score on the leaderboard", async () => {
@@ -183,7 +183,7 @@ describe("anti-cheat ranking", () => {
     const ra = await playRun(a, "daily");
     const sb = await startRun({ store, secret, now: T0 + 10_000 }, b, "daily");
     if ("error" in sb) throw new Error();
-    const res = await finishRun({ store, secret, now: T0 + 80_000 }, b, { runId: sb.runId, inputs: ra.run.inputs, score: ra.run.score, version: ENGINE_VERSION });
+    const res = await finishRun({ store, secret, now: T0 + 80_000 }, b, { runId: sb.runId, ticket: sb.ticket, inputs: ra.run.inputs, score: ra.run.score, version: ENGINE_VERSION });
     expect(res).toMatchObject({ status: "ok", ranked: false, unrankedReason: "duplicate-inputs" });
     const lb = await leaderboard(store, dayKey(T0 + 10_000), b);
     expect(lb.entries).toHaveLength(1);
@@ -195,7 +195,7 @@ describe("anti-cheat ranking", () => {
     const start = await startRun({ store, secret, now: T0 }, a, "daily");
     if ("error" in start) throw new Error();
     const run = simulate(start.seed, 0, start.twist.id);
-    const res = await finishRun({ store, secret, now: T0 + 25 * 60_000 }, a, { runId: start.runId, inputs: run.inputs, score: run.score, version: ENGINE_VERSION });
+    const res = await finishRun({ store, secret, now: T0 + 25 * 60_000 }, a, { runId: start.runId, ticket: start.ticket, inputs: run.inputs, score: run.score, version: ENGINE_VERSION });
     expect(res).toMatchObject({ status: "ok", ranked: false, unrankedReason: "paused-too-long" });
     expect((await getPlayer(store, a)).bestScore).toBe(run.score); // personal stats still count
   });

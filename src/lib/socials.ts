@@ -1,3 +1,8 @@
+import { safeHttpsUrl } from "./site";
+
+/** Discord invite: set NEXT_PUBLIC_DISCORD_INVITE to replace it (only discord.gg / discord.com links are accepted). */
+const DISCORD = safeHttpsUrl(process.env.NEXT_PUBLIC_DISCORD_INVITE, ["discord.gg", "discord.com", "www.discord.com"]) ?? "https://discord.gg/AHKEwYe9B";
+
 /** Official ONE MORE / creator channels. Each has a job for players, used in prompts and on /community. */
 export type SocialId = "discord" | "youtube" | "instagram" | "seevetech" | "x" | "linkedin";
 
@@ -11,7 +16,7 @@ export interface Social {
 }
 
 export const socials: Record<SocialId, Social> = {
-  discord: { id: "discord", label: "Discord", handle: "ONE MORE community", href: "https://discord.gg/AHKEwYe9B", pitch: "Talk strategy for today's arena, join the weekly cup, report bugs and vote on the next power-up." },
+  discord: { id: "discord", label: "Discord", handle: "ONE MORE community", href: DISCORD, pitch: "Talk strategy for today's arena, join the weekly cup, report bugs and vote on the next power-up." },
   youtube: { id: "youtube", label: "YouTube", handle: "@kartikeyahere", href: "https://www.youtube.com/@kartikeyahere", pitch: "Devlogs and a weekly Top Runs video. Post your best run in Discord and it could be featured." },
   instagram: { id: "instagram", label: "Instagram", handle: "@kartikeyahere_", href: "https://www.instagram.com/kartikeyahere_", pitch: "Highlight reels and behind-the-scenes from the developer." },
   seevetech: { id: "seevetech", label: "Instagram", handle: "@seevetech", href: "https://www.instagram.com/seevetech", pitch: "SEEVE Tech, the studio behind ONE MORE: launches and what's next." },

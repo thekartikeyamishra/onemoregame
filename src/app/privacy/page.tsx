@@ -51,6 +51,12 @@ export default function Privacy() {
           )}
           <AdsDisclosure />
 
+          <h2>Battle mode</h2>
+          <p>To play Battle you choose a gamer tag; no email or account is needed. We store the room (gamer tags, teams, colours, results) and each player&apos;s game inputs for that room so the server can verify the result. A random seat key is kept in your browser so you can rejoin after a refresh; we store only a keyed hash of it. Battle rooms and inputs are deleted automatically after about 6 hours. If you rate a battle, we keep the rating and any comment you type (don&apos;t include personal details).</p>
+
+          <h2>AI assistants (ChatGPT, Grok and other MCP apps)</h2>
+          <p>Our <a href="/developers">MCP server</a> lets AI assistants read public game information: today&apos;s Daily Arena and twist, the public leaderboard names and scores, level targets, rules, guides and public challenge details. It requires no account, reads no cookies and collects no personal data from the assistant or its users. We keep only short-lived, hashed IP counters for rate limiting, like the rest of the site. What you type into an assistant is handled by that assistant&apos;s provider under its own privacy policy; we receive only the tool request (for example &ldquo;level 7&rdquo;).</p>
+
           <h2>How long we keep it</h2>
           <ul>
             <li>Unconfirmed early-access requests: deleted automatically after 90 days.</li>

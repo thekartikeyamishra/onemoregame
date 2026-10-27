@@ -58,7 +58,7 @@ export default function Home() {
             </p>
             <div className="btn-row" style={{ marginTop: "2rem" }}>
               <Link href="/play" className="btn btn--primary">Play today&apos;s arena</Link>
-              <Link href="/how-to-play" className="btn">How it works</Link>
+              <Link href="/battle" className="btn">Battle friends</Link>
             </div>
             <p className="hero-note">Open playtest · Browser-first · Free to play · No pay-to-win</p>
           </div>
@@ -86,6 +86,25 @@ export default function Home() {
                 <p className="muted">{f.body}</p>
               </article>
             ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="section" aria-labelledby="battle-h">
+        <div className="container">
+          <div className="battle-promo">
+            <div>
+              <p className="eyebrow">New · multiplayer</p>
+              <h2 id="battle-h">Battle mode: attackers vs defenders</h2>
+              <p className="lede">Up to 5v5 on any phone or laptop. One team collects, the other sabotages with Strikes, Mirrors and Eclipses, then you swap. Short on players? Fill the room with AI.</p>
+              <div className="btn-row"><Link href="/battle" className="btn btn--primary">Start a battle</Link><Link href="/battle#how" className="btn">How it works</Link></div>
+            </div>
+            <ul className="battle-promo-list">
+              <li>⚔ 1v1, 1 vs many, AI teammates or AI rivals</li>
+              <li>⏱ 3- or 5-minute rounds, tie-break Sudden Surge</li>
+              <li>📶 Built for low bandwidth: only your moves are sent</li>
+              <li>🛡 Every result verified by server replay</li>
+            </ul>
           </div>
         </div>
       </section>

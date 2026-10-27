@@ -285,7 +285,7 @@ export async function deleteSignupByEmail(ctx: Ctx, email: string): Promise<bool
   const id = signupIdFor(ctx.secret, email);
   const related: Array<[string, string]> = [
     [C.sessions, "signupId"], [C.loginTokens, "signupId"], [C.runs, "signupId"], [C.runStarts, "signupId"],
-    [C.dailyScores, "signupId"], [C.challenges, "ownerId"], [C.feedback, "signupId"],
+    [C.dailyScores, "signupId"], [C.weeklyScores, "signupId"], [C.challenges, "ownerId"], [C.feedback, "signupId"],
   ];
   for (const [col, field] of related) {
     for (;;) {

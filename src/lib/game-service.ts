@@ -4,7 +4,7 @@ import { hmac, randomCode, randomToken, safeEqual, sha256 } from "./crypto";
 import { signInEmail } from "./emails";
 import { getMailer } from "./mailer";
 import { site } from "./site";
-import { C, type Store } from "./store/types";
+import { C, type Store, type Tx } from "./store/types";
 import { splitToken } from "./validation";
 import type { Ctx, Signup } from "./early-access";
 import { ENGINE_VERSION, MAX_RUN_TICKS, RUN_TICKS, TPS, TWISTS, WEEKDAY_TWIST, isTwistId, replay, rulesFor, validateInputLog, type InputLog, type Rules, type RunResult, type TwistId } from "@/game/engine";
@@ -93,6 +93,47 @@ export function dayKey(now = Date.now()): string {
   return new Date(now + 5.5 * 3600 * 1000).toISOString().slice(0, 10);
 }
 
+/** Week key: the Monday (India time) of the week containing `day`. Weekly leaderboards reset Monday 00:00 IST. */
+export function weekKey(day: string): string {
+  const d = new Date(`${day}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
+  return d.toISOString().slice(0, 10);
+}
+/** The Monday key of the week before. */
+export function prevWeekKey(week: string): string {
+  const d = new Date(`${week}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - 7);
+  return d.toISOString().slice(0, 10);
+}
+/** Milliseconds until the next Daily reset (midnight IST). */
+export function msToReset(now = Date.now()): number {
+  const ist = now + 5.5 * 3600 * 1000;
+  return 864e5 - (ist % 864e5);
+}
+
+/** Retention (Firestore TTL policies delete documents after `expireAt`). */
+const DAY_MS = 864e5;
+const RUN_RETENTION_MS = 120 * DAY_MS;
+const DAILY_RETENTION_MS = 400 * DAY_MS;
+const WEEKLY_RETENTION_MS = 400 * DAY_MS;
+const CHALLENGE_RETENTION_MS = 365 * DAY_MS;
+
+/**
+ * Run tickets: the start of a run is a signed, self-contained token instead of a database document (saves a write
+ * on start and a read + write on finish). Single use is enforced by creating the `runs/{runId}` document.
+ */
+interface TicketData { r: string; s: string | null; m: Mode; seed: number; d: string | null; tw: TwistId; lv: number | null; c: string | null; t: number }
+function signTicket(secret: string, t: TicketData): string {
+  const body = Buffer.from(JSON.stringify(t)).toString("base64url");
+  return `${body}.${hmac(secret, `run-ticket:${body}`).slice(0, 32)}`;
+}
+function readTicket(secret: string, raw: unknown): TicketData | null {
+  if (typeof raw !== "string" || raw.length > 600) return null;
+  const [body, sig] = raw.split(".");
+  if (!body || !sig || !safeEqual(sig, hmac(secret, `run-ticket:${body}`).slice(0, 32))) return null;
+  try { return JSON.parse(Buffer.from(body, "base64url").toString("utf8")) as TicketData; } catch { return null; }
+}
+
 /** The Daily twist for a day key (weekday in India time). */
 export function dailyTwist(day: string): TwistId {
   return WEEKDAY_TWIST[new Date(`${day}T00:00:00Z`).getUTCDay()];
@@ -119,17 +160,28 @@ export async function createSession(ctx: Ctx, signupId: string): Promise<{ token
   return { token: `${id}.${secret}`, expiresAt };
 }
 
+type SessionDoc = { signupId: string; tokenHash: string; expiresAt: number };
+const sessionCaches = new WeakMap<Store, TtlCache<SessionDoc>>();
+function sessionCache(store: Store) {
+  let c = sessionCaches.get(store);
+  if (!c) sessionCaches.set(store, (c = new TtlCache<SessionDoc>(60_000, 2000)));
+  return c;
+}
+
 export async function resolveSession(ctx: Ctx, token: string | undefined | null): Promise<{ sessionId: string; signupId: string } | null> {
   const parts = splitToken(token);
   if (!parts) return null;
-  const s = await ctx.store.get<{ signupId: string; tokenHash: string; expiresAt: number }>(C.sessions, parts.id);
+  // Sessions are read on every request: keep them for a minute per instance (sign-out clears it on this instance).
+  const cache = sessionCache(ctx.store);
+  let s = cache.get(parts.id) ?? null;
+  if (!s) { s = await ctx.store.get<SessionDoc>(C.sessions, parts.id); if (s) cache.set(parts.id, s); }
   if (!s || !safeEqual(sha256(parts.secret), s.tokenHash) || (ctx.now ?? Date.now()) > s.expiresAt) return null;
   return { sessionId: parts.id, signupId: s.signupId };
 }
 
 export async function endSession(ctx: Ctx, token: string | undefined | null) {
   const sess = await resolveSession(ctx, token);
-  if (sess) await ctx.store.delete(C.sessions, sess.sessionId);
+  if (sess) { sessionCache(ctx.store).delete(sess.sessionId); await ctx.store.delete(C.sessions, sess.sessionId); }
 }
 
 /** Email a sign-in link to an accepted playtester. Always resolves silently (no enumeration). */
@@ -191,7 +243,7 @@ export interface Challenge extends Record<string, unknown> {
 }
 
 export type StartResult =
-  | { runId: string; seed: number; mode: Mode; day: string | null; target: number | null; twist: ReturnType<typeof twistInfo>; ghost: InputLog | null; ghostName: string | null; level: LevelInfo | null; rules: Partial<Rules> }
+  | { runId: string; ticket: string; seed: number; mode: Mode; day: string | null; target: number | null; twist: ReturnType<typeof twistInfo>; ghost: InputLog | null; ghostName: string | null; level: LevelInfo | null; rules: Partial<Rules> }
   | { error: "not-found" | "locked" };
 
 export interface LevelInfo { n: number; name: string; description: string; target: number; stars: readonly number[] }
@@ -222,11 +274,9 @@ export async function startRun(ctx: Ctx, signupId: string | null, mode: Mode, ch
     ghost = Array.isArray(c.ghost) ? c.ghost : null; ghostName = c.displayName;
   } else seed = randomInt(1, 2147483647);
   const runId = randomToken(12);
-  await ctx.store.transaction(async (tx) => {
-    tx.create(C.runStarts, runId, { signupId, mode, seed, day, twist, level, challengeId: mode === "challenge" ? challengeId : null, startedAt: now, used: false, expireAt: new Date(now + RUN_START_TTL_MS) });
-  });
+  const ticket = signTicket(ctx.secret, { r: runId, s: signupId, m: mode, seed, d: day, tw: twist, lv: level, c: mode === "challenge" ? challengeId ?? null : null, t: now });
   const info = levelInfo(level);
-  return { runId, seed, mode, day, target, twist: twistInfo(twist), ghost, ghostName, level: info, rules: level ? getLevel(level)!.rules : {} };
+  return { runId, ticket, seed, mode, day, target, twist: twistInfo(twist), ghost, ghostName, level: info, rules: level ? getLevel(level)!.rules : {} };
 }
 
 export type UnrankedReason = "paused-too-long" | "duplicate-inputs" | "leaderboard-banned" | "guest";
@@ -235,14 +285,16 @@ export type FinishResult =
   | { status: "invalid" | "mismatch" | "too-fast" | "expired" | "forbidden" | "outdated" };
 
 export async function finishRun(
-  ctx: Ctx, signupId: string | null, body: { runId: unknown; inputs: unknown; score: unknown; version: unknown },
+  ctx: Ctx, signupId: string | null, body: { runId: unknown; ticket?: unknown; inputs: unknown; score: unknown; version: unknown },
 ): Promise<FinishResult> {
   const now = ctx.now ?? Date.now();
   if (typeof body.runId !== "string" || !/^[A-Za-z0-9_-]{8,40}$/.test(body.runId)) return { status: "invalid" };
   if (body.version !== ENGINE_VERSION) return { status: "outdated" };
   if (!validateInputLog(body.inputs, MAX_RUN_TICKS) || !Number.isInteger(body.score)) return { status: "invalid" };
-  const start = await ctx.store.get<{ signupId: string | null; mode: Mode; seed: number; day: string | null; twist?: TwistId; level?: number | null; challengeId: string | null; startedAt: number; used: boolean }>(C.runStarts, body.runId);
-  if (!start || start.used || now - start.startedAt > RUN_START_TTL_MS) return { status: "expired" };
+  const tk = readTicket(ctx.secret, body.ticket);
+  if (!tk || tk.r !== body.runId) return { status: "expired" };
+  const start = { signupId: tk.s, mode: tk.m, seed: tk.seed, day: tk.d, twist: tk.tw, level: tk.lv, challengeId: tk.c, startedAt: tk.t };
+  if (now - start.startedAt > RUN_START_TTL_MS || now < start.startedAt) return { status: "expired" };
   if (start.signupId !== signupId) return { status: "forbidden" };
 
   const twist: TwistId = isTwistId(start.twist) ? start.twist : "classic";
@@ -267,15 +319,15 @@ export async function finishRun(
     }
   }
   return ctx.store.transaction<FinishResult>(async (tx) => {
-    const st = await tx.get<{ used: boolean }>(C.runStarts, runId);
-    if (!st || st.used) return { status: "expired" };
+    if (await tx.get(C.runs, runId)) return { status: "expired" }; // already submitted (tickets are single use)
     const player = signupId ? (await tx.get<Player>(C.players, signupId)) : null;
     const dailyId = signupId && start.mode === "daily" && start.day ? `${start.day}_${signupId}` : null;
     const daily = dailyId ? await tx.get<{ score: number }>(C.dailyScores, dailyId) : null;
+    const weeklyId = dailyId ? `${weekKey(start.day!)}_${signupId}` : null;
+    const weekly = weeklyId ? await tx.get<WeeklyDoc>(C.weeklyScores, weeklyId) : null;
     const challenge = start.challengeId ? await tx.get<Challenge>(C.challenges, start.challengeId) : null;
 
     if (dailyId && player?.leaderboardBanned && !unrankedReason) unrankedReason = "leaderboard-banned";
-    tx.update(C.runStarts, runId, { used: true });
     tx.create(C.runs, runId, {
       signupId, mode: start.mode, seed: start.seed, day: start.day, twist, level: levelDef?.n ?? null, challengeId: start.challengeId,
       score: result.score, ticks: result.ticks, pickups: result.pickups, hits: result.hits, nearMisses: result.nearMisses,
@@ -284,7 +336,7 @@ export async function finishRun(
       // rankEligible: passed integrity checks; a guest Daily run can still be claimed onto the leaderboard after sign-up.
       rankEligible: start.mode === "daily" ? unrankedReason === null : null,
       ranked: start.mode === "daily" ? unrankedReason === null && !!signupId : null, unrankedReason,
-      claimedAt: null,
+      claimedAt: null, expireAt: new Date(now + RUN_RETENTION_MS),
     });
 
     let personalBest: number | null = null, newBest = false, streak: number | null = null;
@@ -306,8 +358,7 @@ export async function finishRun(
       streak = currentStreak(next, day);
       tx.set(C.players, signupId, next);
       if (dailyId && !unrankedReason && (!daily || result.score > daily.score)) {
-        tx.set(C.dailyScores, dailyId, { day: start.day, signupId, displayName: next.displayName, score: result.score, runId, updatedAt: now });
-        invalidateLeaderboard(ctx.store, start.day!); // the player sees their own new score immediately on this instance
+        writeDailyBest(tx, ctx.store, { day: start.day!, signupId, displayName: next.displayName, score: result.score, prev: daily?.score ?? 0, runId, streak, now, weekly });
       }
     }
     let beat: boolean | null = null;
@@ -338,6 +389,7 @@ export async function createChallenge(ctx: Ctx, signupId: string | null, runId: 
   const id = randomCode(10);
   await ctx.store.transaction(async (tx) => {
     tx.create(C.challenges, id, {
+      expireAt: new Date((ctx.now ?? Date.now()) + CHALLENGE_RETENTION_MS),
       seed: run.seed, score: run.score, twist, level: run.level ?? null, ghost, ownerId: signupId, displayName: player?.displayName ?? null, referralCode: signup?.referralCode ?? null,
       createdAt: ctx.now ?? Date.now(), attempts: 0, beaten: 0,
     } satisfies Challenge);
@@ -363,29 +415,116 @@ async function loadChallengePublic(store: Store, id: string) {
   return c ? { score: c.score, displayName: c.displayName, referralCode: c.referralCode, attempts: c.attempts, hasGhost: Array.isArray(c.ghost), twist: twistInfo(isTwistId(c.twist) ? c.twist : "classic") } : null;
 }
 
-type TopRow = { id: string; data: { displayName: string | null; score: number; signupId: string } };
-/** Public top-20 is identical for everyone: cache it briefly per instance (cuts reads under load). */
+// ------------------------------------------------------------------------------------------------- leaderboards
+/**
+ * Two boards: Today (best run of the day) and This week (sum of your best score on each day, Monday–Sunday IST,
+ * so coming back every day is what wins the week). Public top lists are identical for everyone: they are cached
+ * per instance and at the CDN. Personal standing (rank, the player just ahead/behind) costs ~3 small reads.
+ */
+export type BoardScope = "day" | "week";
+export interface WeeklyDoc extends Record<string, unknown> { week: string; signupId: string; displayName: string | null; score: number; days: Record<string, number>; streak: number; updatedAt: number }
+interface BoardRow extends Record<string, unknown> { displayName: string | null; score: number; signupId: string; streak?: number; days?: Record<string, number> }
+type TopRow = { id: string; data: BoardRow };
+const BOARD = { day: { col: C.dailyScores, field: "day" }, week: { col: C.weeklyScores, field: "week" } } as const;
+
 const topCaches = new WeakMap<Store, TtlCache<TopRow[]>>();
+const countCaches = new WeakMap<Store, TtlCache<number>>();
 function topCache(store: Store) {
   let c = topCaches.get(store);
   if (!c) topCaches.set(store, (c = new TtlCache<TopRow[]>(10_000)));
   return c;
 }
-
-export function invalidateLeaderboard(store: Store, day: string) {
-  topCache(store).delete(day);
+const champCaches = new WeakMap<Store, TtlCache<TopRow[]>>();
+function champCache(store: Store) {
+  let c = champCaches.get(store);
+  if (!c) champCaches.set(store, (c = new TtlCache<TopRow[]>(600_000, 20)));
+  return c;
+}
+function countCache(store: Store) {
+  let c = countCaches.get(store);
+  if (!c) countCaches.set(store, (c = new TtlCache<number>(30_000, 1000)));
+  return c;
 }
 
-export async function leaderboard(store: Store, day: string, signupId: string | null) {
-  const top = await topCache(store).getOrLoad(day, () => store.query<TopRow["data"]>(C.dailyScores, {
-    where: [["day", day]], orderBy: { field: "score", direction: "desc" }, limit: 20,
+export function invalidateLeaderboard(store: Store, day: string) {
+  topCache(store).delete(`day:${day}`);
+  topCache(store).delete(`week:${weekKey(day)}`);
+}
+
+/** Writes a new daily best and updates the weekly total in the same transaction (reads were done by the caller). */
+function writeDailyBest(tx: Tx, store: Store, a: { day: string; signupId: string; displayName: string | null; score: number; prev: number; runId: string; streak: number | null; now: number; weekly: WeeklyDoc | null }) {
+  const week = weekKey(a.day);
+  tx.set(C.dailyScores, `${a.day}_${a.signupId}`, {
+    day: a.day, week, signupId: a.signupId, displayName: a.displayName, score: a.score, runId: a.runId, streak: a.streak ?? 0,
+    updatedAt: a.now, expireAt: new Date(a.now + DAILY_RETENTION_MS),
+  });
+  const days = { ...(a.weekly?.days ?? {}), [a.day]: a.score };
+  const total = Object.values(days).reduce((x, y) => x + y, 0);
+  tx.set(C.weeklyScores, `${week}_${a.signupId}`, {
+    week, signupId: a.signupId, displayName: a.displayName, score: total, days, streak: a.streak ?? 0,
+    updatedAt: a.now, expireAt: new Date(a.now + WEEKLY_RETENTION_MS),
+  });
+  invalidateLeaderboard(store, a.day); // the player sees their own new score immediately on this instance
+}
+
+function competitionRanks(rows: TopRow[]) {
+  let rank = 0, prev = Infinity;
+  return rows.map((r, i) => { if (r.data.score !== prev) { rank = i + 1; prev = r.data.score; } return rank; });
+}
+
+/** Public board: top 20 with ranks (ties share a rank), number of players, time to reset. */
+export async function board(store: Store, scope: BoardScope, key: string, now = Date.now()) {
+  const b = BOARD[scope];
+  const top = await topCache(store).getOrLoad(`${scope}:${key}`, () => store.query<BoardRow>(b.col, {
+    where: [[b.field, key]], orderBy: { field: "score", direction: "desc" }, limit: 20,
   }));
-  const mine = signupId ? await store.get<{ score: number }>(C.dailyScores, `${day}_${signupId}`) : null;
+  const players = await countCache(store).getOrLoad(`n:${scope}:${key}`, () => store.count(b.col, [[b.field, key]]));
+  const ranks = competitionRanks(top);
+  // Weekly board also shows last week's podium ("be next week's champion"): a finished week never changes, so it is
+  // cached for 10 minutes per instance.
+  let champions: Array<{ rank: number; name: string; score: number }> | undefined;
+  if (scope === "week") {
+    const prev = prevWeekKey(key);
+    const podium = await champCache(store).getOrLoad(prev, () => store.query<BoardRow>(b.col, { where: [[b.field, prev]], orderBy: { field: "score", direction: "desc" }, limit: 3 }));
+    const pr = competitionRanks(podium);
+    champions = podium.map((r, i) => ({ rank: pr[i], name: r.data.displayName ?? "Anonymous player", score: r.data.score }));
+  }
+  const reset = scope === "day" ? msToReset(now) : msToReset(now) + ((7 - ((new Date(`${dayKey(now)}T00:00:00Z`).getUTCDay() + 6) % 7) - 1) * DAY_MS);
   return {
-    day,
-    entries: top.map((r, i) => ({ rank: i + 1, name: r.data.displayName ?? "Anonymous player", score: r.data.score, me: r.data.signupId === signupId })),
-    myScore: mine?.score ?? null,
+    scope, key, players: Math.max(players, top.length), resetsInMs: reset, ...(champions ? { champions } : {}),
+    entries: top.map((r, i) => ({ rank: ranks[i], id: r.data.signupId.slice(0, 8), name: r.data.displayName ?? "Anonymous player", score: r.data.score, streak: r.data.streak ?? 0, days: r.data.days ? Object.keys(r.data.days).length : undefined })),
   };
+}
+
+/** A signed-in player's position: rank, and the players just ahead and behind (the "one more" targets). */
+export async function standing(store: Store, scope: BoardScope, key: string, signupId: string) {
+  const b = BOARD[scope];
+  const mine = await store.get<BoardRow>(b.col, `${key}_${signupId}`);
+  const players = await countCache(store).getOrLoad(`n:${scope}:${key}`, () => store.count(b.col, [[b.field, key]]));
+  if (!mine) return { scope, key, score: null, rank: null, players, ahead: null, behind: null, id: signupId.slice(0, 8) };
+  const [above, ahead, behind] = await Promise.all([
+    store.count(b.col, [[b.field, key]], { field: "score", op: ">", value: mine.score }),
+    store.query<BoardRow>(b.col, { where: [[b.field, key]], range: { field: "score", op: ">", value: mine.score }, orderBy: { field: "score", direction: "asc" }, limit: 1 }),
+    store.query<BoardRow>(b.col, { where: [[b.field, key]], range: { field: "score", op: "<", value: mine.score }, orderBy: { field: "score", direction: "desc" }, limit: 1 }),
+  ]);
+  const near = (r?: { data: BoardRow }) => (r ? { name: r.data.displayName ?? "Anonymous player", score: r.data.score, gap: Math.abs(r.data.score - mine.score) } : null);
+  return { scope, key, score: mine.score, rank: above + 1, players: Math.max(players, above + 1), ahead: near(ahead[0]), behind: near(behind[0]), id: signupId.slice(0, 8) };
+}
+
+/** Where a score would place today (for guests: "this run would be #14 — claim it"). Cached per score for 30 s. */
+export async function wouldRank(store: Store, day: string, score: number) {
+  const s = Math.max(0, Math.floor(score));
+  const above = await countCache(store).getOrLoad(`r:${day}:${s}`, () => store.count(C.dailyScores, [["day", day]], { field: "score", op: ">", value: s }));
+  const players = await countCache(store).getOrLoad(`n:day:${day}`, () => store.count(C.dailyScores, [["day", day]]));
+  return { day, rank: above + 1, players: Math.max(players, above + 1) };
+}
+
+/** Compatibility wrapper (MCP server, older callers): today's board plus the caller's own score. */
+export async function leaderboard(store: Store, day: string, signupId: string | null) {
+  const b = await board(store, "day", day);
+  const mine = signupId ? await store.get<{ score: number }>(C.dailyScores, `${day}_${signupId}`) : null;
+  const me = signupId?.slice(0, 8);
+  return { day, entries: b.entries.map((e) => ({ rank: e.rank, name: e.name, score: e.score, me: e.id === me })), myScore: mine?.score ?? null };
 }
 
 export async function saveFeedback(ctx: Ctx, signupId: string | null, body: { runId: unknown; wouldReplay: unknown; note: unknown }) {
@@ -411,6 +550,7 @@ export async function claimGuestRun(ctx: Ctx, signupId: string): Promise<number 
     const player = await tx.get<Player>(C.players, signupId);
     const dailyId = run?.mode === "daily" && run.day === today && run.rankEligible ? `${today}_${signupId}` : null;
     const daily = dailyId ? await tx.get<{ score: number }>(C.dailyScores, dailyId) : null;
+    const weekly = dailyId ? await tx.get<WeeklyDoc>(C.weeklyScores, `${weekKey(today)}_${signupId}`) : null;
     tx.update(C.signups, signupId, { claimRunId: null });
     if (!run || run.signupId !== null || run.claimedAt) return null;
     const next = playerAfterRun(player, run, today, now);
@@ -418,8 +558,7 @@ export async function claimGuestRun(ctx: Ctx, signupId: string): Promise<number 
     tx.set(C.players, signupId, next);
     tx.update(C.runs, runId, { signupId, claimedAt: now, ranked: !!dailyId && !player?.leaderboardBanned });
     if (dailyId && !player?.leaderboardBanned && (!daily || run.score > daily.score)) {
-      tx.set(C.dailyScores, dailyId, { day: today, signupId, displayName: next.displayName, score: run.score, runId, updatedAt: now });
-      invalidateLeaderboard(ctx.store, today);
+      writeDailyBest(tx, ctx.store, { day: today, signupId, displayName: next.displayName, score: run.score, prev: daily?.score ?? 0, runId, streak: currentStreak(next, today), now, weekly });
     }
     return run.score;
   });
@@ -443,7 +582,8 @@ export async function reviewDay(store: Store, day: string) {
 /** Operator action: remove a player from leaderboards (their daily entries are deleted, future runs unranked). */
 export async function banFromLeaderboard(store: Store, signupId: string) {
   const entries = await store.query<{ day: string }>(C.dailyScores, { where: [["signupId", signupId]], limit: 500 });
-  await Promise.all(entries.map((e) => store.delete(C.dailyScores, e.id)));
+  const weeks = await store.query<{ week: string }>(C.weeklyScores, { where: [["signupId", signupId]], limit: 200 });
+  await Promise.all([...entries.map((e) => store.delete(C.dailyScores, e.id)), ...weeks.map((e) => store.delete(C.weeklyScores, e.id))]);
   for (const e of entries) invalidateLeaderboard(store, e.data.day);
   await store.transaction(async (tx) => {
     const p = await tx.get<Player>(C.players, signupId);

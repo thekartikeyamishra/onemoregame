@@ -17,7 +17,28 @@ export const limits = {
   guestRunPerIp: { name: "gr-ip", max: 120, windowMs: 60 * 60 * 1000 },
   challengePerIp: { name: "ch-ip", max: 30, windowMs: 60 * 60 * 1000 },
   feedbackPerIp: { name: "fb-ip", max: 30, windowMs: 60 * 60 * 1000 },
+  mcpPerIp: { name: "mcp-ip", max: 300, windowMs: 60 * 60 * 1000 },
+  runFinishPerIp: { name: "rf-ip", max: 400, windowMs: 60 * 60 * 1000 },
+  rankPerIp: { name: "rk-ip", max: 300, windowMs: 60 * 60 * 1000 },
+  battleCreatePerIp: { name: "bc-ip", max: 20, windowMs: 60 * 60 * 1000 },
+  battleJoinPerIp: { name: "bj-ip", max: 60, windowMs: 60 * 60 * 1000 },
 } satisfies Record<string, Limit>;
+
+/**
+ * Per-instance fixed-window limiter (no database cost). Used on hot game paths where every run is verified anyway
+ * and a limit only needs to stop floods; Firestore-backed `consume` stays on email and creation endpoints.
+ */
+const local = new Map<string, { w: number; n: number }>();
+export function localAllow(limit: Limit, subject: string, now = Date.now()): boolean {
+  const w = Math.floor(now / limit.windowMs), key = `${limit.name}:${subject}`;
+  const e = local.get(key);
+  if (!e || e.w !== w) {
+    if (local.size > 20000) for (const [k, v] of local) if (v.w !== w) local.delete(k);
+    local.set(key, { w, n: 1 });
+    return true;
+  }
+  return ++e.n <= limit.max;
+}
 
 /** Fixed-window counter. `subject` must already be a hash (never a raw IP or email). */
 export async function consume(store: Store, limit: Limit, subject: string, now = Date.now()): Promise<boolean> {

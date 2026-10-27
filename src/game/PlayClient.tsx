@@ -22,7 +22,7 @@ type LevelInfo = { n: number; name: string; description: string; target: number;
 export type LevelSummary = LevelInfo & { kind: string; seconds: number };
 export type LevelProgress = { unlocked: number; best: Record<string, number> };
 type LevelResult = { n: number; target: number; stars: number; passed: boolean; unlocked: number; best: number };
-type Start = { runId: string; seed: number; mode: Mode; day: string | null; target: number | null; twist: TwistInfo; ghost: InputLog | null; ghostName: string | null; level: LevelInfo | null; rules: Partial<Rules> };
+type Start = { runId: string; ticket: string; seed: number; mode: Mode; day: string | null; target: number | null; twist: TwistInfo; ghost: InputLog | null; ghostName: string | null; level: LevelInfo | null; rules: Partial<Rules> };
 type Saved = { personalBest: number | null; newBest: boolean; target: number | null; beat: boolean | null; ranked: boolean; unrankedReason: string | null; streak: number | null; guest: boolean; level: LevelResult | null } | null;
 
 function starCount(stars: readonly number[], score: number) { return stars.filter((t) => score >= t).length; }
@@ -100,7 +100,7 @@ export function PlayClient({ player, challenge = null, dailyTwist = null, levels
     setRunsThisVisit((n) => n + 1);
     track("first_game_completed", { mode: run.mode });
     setPhase({ kind: "result", run, result: end.result, inputs: end.log, saved: null, saveError: null });
-    const r = await post<NonNullable<Saved>>("/api/game/finish", { runId: run.runId, inputs: end.log, score: end.result.score, version: ENGINE_VERSION });
+    const r = await post<NonNullable<Saved>>("/api/game/finish", { runId: run.runId, ticket: run.ticket, inputs: end.log, score: end.result.score, version: ENGINE_VERSION });
     if (r.ok) {
       if (r.data.personalBest !== null) setBest(r.data.personalBest);
       if (r.data.streak !== null) setStreak(r.data.streak);
@@ -189,6 +189,7 @@ export function PlayClient({ player, challenge = null, dailyTwist = null, levels
           {player ? <div className="stat"><b className={streak > 1 ? "streak" : undefined}>{streak > 0 ? `🔥 ${streak}` : "—"}</b><span>Daily streak</span></div> : null}
           {mode === "level" && player ? <div className="stat"><b>★ {levels.reduce((n, l) => n + starCount(l.stars, progress.best[l.n] ?? 0), 0)}/{levels.length * 3}</b><span>Stars</span></div> : <div className="stat"><b>60s</b><span>Per run</span></div>}
         </div>
+        <p className="small"><a href="/battle">⚔ New: Battle your friends (up to 5v5, or vs AI) →</a></p>
         <details>
           <summary className="small" style={{ cursor: "pointer" }}>Controls &amp; settings</summary>
           <ul className="small muted" style={{ marginTop: ".75rem" }}>
@@ -204,7 +205,7 @@ export function PlayClient({ player, challenge = null, dailyTwist = null, levels
       {!challenge ? (
         <aside className="grid" style={{ gap: "1.5rem" }}>
           {player ? <NameForm initial={player.displayName} /> : null}
-          <Leaderboard version={lbVersion} />
+          <Leaderboard version={lbVersion} signedIn={!!player} />
         </aside>
       ) : null}
     </div>
@@ -272,6 +273,7 @@ function Result({ phase, best, streak, isGuest, challenge, runsThisVisit, onAgai
           {!isGuest ? <div className="stat"><b>{best.toLocaleString("en-IN")}</b><span>Personal best</span></div> : null}
           {shownStreak && shownStreak > 0 ? <div className="stat"><b className="streak">🔥 {shownStreak}</b><span>Daily streak</span></div> : null}
         </div>
+        {saved && run.mode === "daily" && (saved.ranked || saved.unrankedReason === "guest") ? <RankLine score={result.score} ranked={saved.ranked} /> : null}
         {saveError ? <div className="notice notice--err" role="alert"><strong>Not recorded</strong>{saveError}</div> : saved === null ? <p className="small muted" role="status">Verifying score…</p> : <p className="small muted">Score verified by replay ✓{run.mode === "daily" ? (saved.ranked ? " · on today's leaderboard if it's your best" : saved.unrankedReason === "guest" ? " · confirm your email below to put it on the leaderboard" : ` · not ranked: ${UNRANKED[saved.unrankedReason ?? ""] ?? "see Fair Play"}`) : ""}</p>}
         <div className="btn-row">
           {onNext ? <button type="button" className="btn btn--primary" onClick={onNext}>Next: Level {lr!.n + 1} →</button> : null}
@@ -393,28 +395,84 @@ function NameForm({ initial }: { initial: string | null }) {
   );
 }
 
-function Leaderboard({ version }: { version: number }) {
-  const [data, setData] = useState<{ day: string; entries: Array<{ rank: number; name: string; score: number; me: boolean }>; myScore: number | null } | null>(null);
+type BoardData = { scope: "day" | "week"; key: string; players: number; resetsInMs: number; entries: Array<{ rank: number; id: string; name: string; score: number; streak: number; days?: number }>; champions?: Array<{ rank: number; name: string; score: number }> };
+type Standing = { signedIn: boolean; score: number | null; rank: number | null; players: number; id?: string; ahead: { name: string; score: number; gap: number } | null; behind: { name: string; score: number; gap: number } | null };
+const fmt = (n: number) => n.toLocaleString("en-IN");
+function fmtLeft(ms: number) {
+  const h = Math.floor(ms / 3600e3), m = Math.floor((ms % 3600e3) / 60e3);
+  return h >= 24 ? `${Math.floor(h / 24)}d ${h % 24}h` : h ? `${h}h ${m}m` : `${m}m`;
+}
+
+/** Where this Daily run places: "#14 of 312 today" (guests: "would be #14", the nudge to claim it). */
+function RankLine({ score, ranked }: { score: number; ranked: boolean }) {
+  const [text, setText] = useState<string | null>(null);
+  useEffect(() => {
+    let live = true;
+    const url = ranked ? "/api/game/leaderboard/me?scope=day" : `/api/game/leaderboard/rank?score=${score}`;
+    fetch(url, { cache: "no-store" }).then((r) => (r.ok ? r.json() : null)).then((d: (Standing & { rank: number | null }) | null) => {
+      if (!live || !d || !d.rank) return;
+      if (ranked) setText(`You're #${fmt(d.rank)} of ${fmt(d.players)} today.${d.ahead ? ` ${fmt(d.ahead.gap + 1)} more to pass ${d.ahead.name}.` : " You're on top!"}`);
+      else setText(`This run would be #${fmt(d.rank)} of ${fmt(d.players)} today. Confirm your email below to claim it.`);
+    }).catch(() => undefined);
+    return () => { live = false; };
+  }, [score, ranked]);
+  return text ? <p className="rank-line" role="status">🏁 {text}</p> : null;
+}
+
+function Leaderboard({ version, signedIn }: { version: number; signedIn: boolean }) {
+  const [scope, setScope] = useState<"day" | "week">("day");
+  const [data, setData] = useState<BoardData | null>(null);
+  const [me, setMe] = useState<Standing | null>(null);
   const [failed, setFailed] = useState(false);
   useEffect(() => {
     let live = true;
-    fetch("/api/game/leaderboard").then((r) => (r.ok ? r.json() : Promise.reject())).then((d) => { if (live) { setData(d); setFailed(false); } }).catch(() => live && setFailed(true));
+    fetch(`/api/game/leaderboard?scope=${scope}`).then((r) => (r.ok ? r.json() : Promise.reject())).then((d: BoardData) => { if (live) { setData(d); setFailed(false); } }).catch(() => live && setFailed(true));
+    if (signedIn) fetch(`/api/game/leaderboard/me?scope=${scope}`, { cache: "no-store" }).then((r) => (r.ok ? r.json() : null)).then((d: Standing | null) => { if (live) setMe(d); }).catch(() => undefined);
     return () => { live = false; };
-  }, [version]);
+  }, [version, scope, signedIn]);
+  const medal = (rank: number) => (rank === 1 ? "🥇" : rank === 2 ? "🥈" : rank === 3 ? "🥉" : rank);
+  const inTop = !!me?.id && !!data?.entries.some((e) => e.id === me.id);
   return (
-    <section className="form-card" aria-labelledby="lb-h">
-      <h2 id="lb-h" style={{ fontSize: "var(--step-1)" }}>Today&apos;s Daily Arena</h2>
+    <section className="form-card lb-card" aria-labelledby="lb-h">
+      <div className="lb-head">
+        <h2 id="lb-h" style={{ fontSize: "var(--step-1)", margin: 0 }}>Leaderboard</h2>
+        <div className="mode-tabs" role="group" aria-label="Leaderboard period">
+          <button type="button" className="btn btn--sm" aria-pressed={scope === "day"} onClick={() => setScope("day")}>Today</button>
+          <button type="button" className="btn btn--sm" aria-pressed={scope === "week"} onClick={() => setScope("week")}>This week</button>
+        </div>
+      </div>
+      <p className="small muted" style={{ margin: ".25rem 0 .75rem" }}>
+        {scope === "day" ? "Best Daily Arena run today." : "Your best Daily score each day, added up (Mon–Sun). Play every day to climb."}
+        {data ? ` ${fmt(data.players)} player${data.players === 1 ? "" : "s"} · resets in ${fmtLeft(data.resetsInMs)}.` : ""}
+      </p>
       {failed ? <p className="small muted">Leaderboard unavailable right now.</p> : !data ? (
         <div aria-busy="true" aria-label="Loading leaderboard">{[0, 1, 2, 3, 4].map((i) => <div key={i} className="skeleton skeleton-row" />)}</div>
       ) : data.entries.length === 0 ? (
-        <p className="small muted">No scores yet today. Set the first one.</p>
+        <p className="small muted">No scores yet {scope === "day" ? "today" : "this week"}. Set the first one.</p>
       ) : (
         <table className="lb">
-          <thead><tr><th scope="col">#</th><th scope="col">Player</th><th scope="col">Score</th></tr></thead>
-          <tbody>{data.entries.map((e) => <tr key={e.rank} data-me={e.me}><td>{e.rank}</td><td>{e.name}{e.me ? " (you)" : ""}</td><td>{e.score.toLocaleString("en-IN")}</td></tr>)}</tbody>
+          <thead><tr><th scope="col">#</th><th scope="col">Player</th><th scope="col">{scope === "day" ? "Score" : "Total"}</th></tr></thead>
+          <tbody>{data.entries.map((e, i) => (
+            <tr key={`${e.id}-${i}`} data-me={e.id === me?.id} data-top={e.rank <= 3 || undefined}>
+              <td>{medal(e.rank)}</td>
+              <td>{e.name}{e.id === me?.id ? " (you)" : ""}{e.streak > 1 ? <span className="lb-streak" title={`${e.streak}-day streak`}> 🔥{e.streak}</span> : null}{scope === "week" && e.days ? <span className="lb-days"> {e.days}/7d</span> : null}</td>
+              <td>{fmt(e.score)}</td>
+            </tr>
+          ))}</tbody>
         </table>
       )}
-      {data?.myScore != null && !data.entries.some((e) => e.me) ? <p className="small muted">Your best today: {data.myScore.toLocaleString("en-IN")}</p> : null}
+      {scope === "week" && data?.champions?.length ? (
+        <p className="small lb-champs">🏆 Last week: {data.champions.map((c) => `${medal(c.rank)} ${c.name} (${fmt(c.score)})`).join(" · ")}. Next week&apos;s champion could be you.</p>
+      ) : null}
+      {me?.signedIn ? (
+        me.rank ? (
+          <div className="lb-me">
+            {!inTop ? <p><b>You: #{fmt(me.rank)}</b> of {fmt(me.players)} · {fmt(me.score ?? 0)}</p> : null}
+            {me.ahead ? <p className="small">⬆ {fmt(me.ahead.gap + 1)} more to pass <b>{me.ahead.name}</b> ({fmt(me.ahead.score)}).</p> : <p className="small">👑 You&apos;re top of the board. Defend it.</p>}
+            {me.behind ? <p className="small muted">⬇ {me.behind.name} is {fmt(me.behind.gap)} behind you.</p> : null}
+          </div>
+        ) : <p className="small muted lb-me">Play today&apos;s Daily Arena to get on the board.</p>
+      ) : !signedIn ? <p className="small muted lb-me">Confirm your email after a run to join the leaderboard.</p> : null}
     </section>
   );
 }

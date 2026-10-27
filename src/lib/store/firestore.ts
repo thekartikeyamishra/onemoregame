@@ -1,6 +1,6 @@
 import { applicationDefault, cert, getApps, initializeApp, type ServiceAccount } from "firebase-admin/app";
 import { getFirestore, type Firestore } from "firebase-admin/firestore";
-import { AlreadyExistsError, type DocData, type Query, type Store, type Tx } from "./types";
+import { AlreadyExistsError, type DocData, type Query, type Range, type Store, type Tx } from "./types";
 
 let db: Firestore | null = null;
 
@@ -88,6 +88,7 @@ export class FirestoreStore implements Store {
   async query<T extends DocData>(collection: string, q: Query) {
     let query: FirebaseFirestore.Query = firestore().collection(collection);
     for (const [f, v] of q.where ?? []) query = query.where(f, "==", v);
+    if (q.range) query = query.where(q.range.field, q.range.op, q.range.value);
     if (q.orderBy) query = query.orderBy(q.orderBy.field, q.orderBy.direction ?? "asc");
     if (q.limit) query = query.limit(q.limit);
     const snap = await query.get();
@@ -98,9 +99,10 @@ export class FirestoreStore implements Store {
     await firestore().collection(collection).doc(id).delete();
   }
 
-  async count(collection: string, where: Array<[string, unknown]>) {
+  async count(collection: string, where: Array<[string, unknown]>, range?: Range) {
     let query: FirebaseFirestore.Query = firestore().collection(collection);
     for (const [f, v] of where) query = query.where(f, "==", v);
+    if (range) query = query.where(range.field, range.op, range.value);
     const agg = await query.count().get();
     return agg.data().count;
   }

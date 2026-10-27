@@ -59,6 +59,48 @@
           "order": "ASCENDING"
         }
       ]
+    },
+    {
+      "collectionGroup": "dailyScores",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "day",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "score",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "weeklyScores",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "week",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "score",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "weeklyScores",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "week",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "score",
+          "order": "ASCENDING"
+        }
+      ]
     }
   ],
   "fieldOverrides": [
@@ -106,6 +148,247 @@
       "collectionGroup": "runStarts",
       "fieldPath": "expireAt",
       "ttl": true,
+      "indexes": []
+    },
+    {
+      "collectionGroup": "battleLanes",
+      "fieldPath": "head",
+      "ttl": false,
+      "indexes": []
+    },
+    {
+      "collectionGroup": "battleLanes",
+      "fieldPath": "sh",
+      "ttl": false,
+      "indexes": []
+    },
+    {
+      "collectionGroup": "battleLanes",
+      "fieldPath": "segs",
+      "ttl": false,
+      "indexes": []
+    },
+    {
+      "collectionGroup": "battleLanes",
+      "fieldPath": "plays",
+      "ttl": false,
+      "indexes": []
+    },
+    {
+      "collectionGroup": "battleLanes",
+      "fieldPath": "last",
+      "ttl": false,
+      "indexes": []
+    },
+    {
+      "collectionGroup": "battleLaneSegs",
+      "fieldPath": "i",
+      "ttl": false,
+      "indexes": []
+    },
+    {
+      "collectionGroup": "battleLaneSegs",
+      "fieldPath": "s",
+      "ttl": false,
+      "indexes": []
+    },
+    {
+      "collectionGroup": "battleRooms",
+      "fieldPath": "players",
+      "ttl": false,
+      "indexes": []
+    },
+    {
+      "collectionGroup": "battleRooms",
+      "fieldPath": "rounds",
+      "ttl": false,
+      "indexes": []
+    },
+    {
+      "collectionGroup": "battleRooms",
+      "fieldPath": "expiresAt",
+      "ttl": true,
+      "indexes": []
+    },
+    {
+      "collectionGroup": "battleLanes",
+      "fieldPath": "expiresAt",
+      "ttl": true,
+      "indexes": []
+    },
+    {
+      "collectionGroup": "battleLaneSegs",
+      "fieldPath": "expiresAt",
+      "ttl": true,
+      "indexes": []
+    },
+    {
+      "collectionGroup": "runs",
+      "fieldPath": "expireAt",
+      "ttl": true,
+      "indexes": []
+    },
+    {
+      "collectionGroup": "dailyScores",
+      "fieldPath": "expireAt",
+      "ttl": true,
+      "indexes": []
+    },
+    {
+      "collectionGroup": "weeklyScores",
+      "fieldPath": "expireAt",
+      "ttl": true,
+      "indexes": []
+    },
+    {
+      "collectionGroup": "challenges",
+      "fieldPath": "expireAt",
+      "ttl": true,
+      "indexes": []
+    },
+    {
+      "collectionGroup": "runs",
+      "fieldPath": "pickups",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "runs",
+      "fieldPath": "hits",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "runs",
+      "fieldPath": "nearMisses",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "runs",
+      "fieldPath": "maxCombo",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "runs",
+      "fieldPath": "powerUps",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "runs",
+      "fieldPath": "shieldBlocks",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "runs",
+      "fieldPath": "inputEvents",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "runs",
+      "fieldPath": "elapsedMs",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "runs",
+      "fieldPath": "engine",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "runs",
+      "fieldPath": "ticks",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "runs",
+      "fieldPath": "twist",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "runs",
+      "fieldPath": "level",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "runs",
+      "fieldPath": "challengeId",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "runs",
+      "fieldPath": "unrankedReason",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "runs",
+      "fieldPath": "claimedAt",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "runs",
+      "fieldPath": "rankEligible",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "runs",
+      "fieldPath": "score",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "runs",
+      "fieldPath": "createdAt",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "runs",
+      "fieldPath": "day",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "weeklyScores",
+      "fieldPath": "days",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "weeklyScores",
+      "fieldPath": "displayName",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "weeklyScores",
+      "fieldPath": "streak",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "weeklyScores",
+      "fieldPath": "updatedAt",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "dailyScores",
+      "fieldPath": "displayName",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "dailyScores",
+      "fieldPath": "runId",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "dailyScores",
+      "fieldPath": "streak",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "dailyScores",
+      "fieldPath": "updatedAt",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "dailyScores",
+      "fieldPath": "week",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "challenges",
+      "fieldPath": "ghost",
       "indexes": []
     }
   ]

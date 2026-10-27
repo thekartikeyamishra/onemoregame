@@ -63,10 +63,12 @@ export interface Rules {
   powerOnly: PowerType | null;
   powerGap: readonly [number, number];
   startShield: boolean;
+  /** Upper bound on simultaneous hazards (Battle rounds last minutes; classic runs never reach it). */
+  hazardCap: number;
 }
 
 export const CLASSIC_RULES: Rules = {
-  durationTicks: RUN_TICKS, hazardSpeed: 1, extraHazards: 0, spawnRate: 1, shardR: SHARD_R, powerOnly: null, powerGap: [600, 300], startShield: false,
+  durationTicks: RUN_TICKS, hazardSpeed: 1, extraHazards: 0, spawnRate: 1, shardR: SHARD_R, powerOnly: null, powerGap: [600, 300], startShield: false, hazardCap: 99,
 };
 
 export function rulesFor(twist: TwistId = "classic", override: Partial<Rules> = {}): Rules {
@@ -99,7 +101,7 @@ export const DIRS: ReadonlyArray<readonly [number, number]> = [[1,0],[0.995185,0
 
 export interface Shard { x: number; y: number; born: number }
 /** Hazards are axis-aligned squares (half-size `s`); collision is exact circle-vs-square. */
-export interface Hazard { id: number; x: number; y: number; vx: number; vy: number; s: number; hit: boolean; nearMissed: boolean }
+export interface Hazard { id: number; x: number; y: number; vx: number; vy: number; s: number; hit: boolean; nearMissed: boolean; /** Battle: ticks until it vanishes. */ ttl?: number }
 export interface PowerUp { type: PowerType; x: number; y: number; born: number }
 export type GameEvent =
   | { type: "pickup"; x: number; y: number; combo: number; points: number }
@@ -141,6 +143,8 @@ export interface GameState {
   nearMisses: number;
   powerUps: number;
   over: boolean;
+  /** Battle modifiers (absent in solo modes, so solo simulation is unchanged). */
+  mods?: { hazardScale: number; jam: boolean };
 }
 
 export interface TickInput { dir: number; dash: boolean }
@@ -283,7 +287,7 @@ export function step(s: GameState, input: TickInput): GameEvent[] {
   // --- Power-up spawn / pickup / despawn
   if (s.power) {
     const dx = s.power.x - s.x, dy = s.power.y - s.y, r = PLAYER_R + POWER_R;
-    if (dx * dx + dy * dy <= r * r) {
+    if (dx * dx + dy * dy <= r * r && !s.mods?.jam) {
       const t = s.power.type;
       s.active[t] = POWER_DURATION[t];
       s.powerUps++;
@@ -302,9 +306,9 @@ export function step(s: GameState, input: TickInput): GameEvent[] {
 
   // --- Hazards
   const progress = s.tick / s.rules.durationTicks;
-  const maxHazards = 3 + Math.floor(s.tick / 900) + s.rules.extraHazards;
+  const maxHazards = Math.min(s.rules.hazardCap, 3 + Math.floor(s.tick / 900) + s.rules.extraHazards);
   if (s.hazards.length < maxHazards && next(s) < (0.012 + 0.02 * progress) * s.rules.spawnRate) spawnHazard(s);
-  const speedScale = s.active.slow > 0 ? 0.5 : 1;
+  const speedScale = (s.active.slow > 0 ? 0.5 : 1) * (s.mods ? s.mods.hazardScale : 1);
   const limit = ARENA_R * 1.4 * (ARENA_R * 1.4);
   for (let i = s.hazards.length - 1; i >= 0; i--) {
     const h = s.hazards[i];
@@ -326,6 +330,7 @@ export function step(s: GameState, input: TickInput): GameEvent[] {
         }
       }
     }
+    if (h.ttl !== undefined && --h.ttl <= 0) { s.hazards.splice(i, 1); continue; }
     if (h.x * h.x + h.y * h.y > limit) s.hazards.splice(i, 1);
   }
 
@@ -333,6 +338,16 @@ export function step(s: GameState, input: TickInput): GameEvent[] {
   s.ticksLeft--;
   if (s.ticksLeft <= 0) { s.ticksLeft = 0; s.over = true; ev.push({ type: "end" }); }
   return ev;
+}
+
+/** Battle: add a hazard directly (attacker abilities). Deterministic; uses no randomness. */
+export function injectHazard(s: GameState, x: number, y: number, vx: number, vy: number, size: number, ttl?: number): void {
+  s.hazards.push({ id: s.nextHazardId++, x, y, vx, vy, s: size, hit: false, nearMissed: false, ...(ttl !== undefined ? { ttl } : {}) });
+}
+
+/** Battle: add a shard at a point (defender abilities). */
+export function injectShard(s: GameState, x: number, y: number): void {
+  s.shards.push({ x, y, born: s.tick });
 }
 
 /** Input log: flat array of [tick, dir, dash] triples, one per tick where input changed or dash pressed. */

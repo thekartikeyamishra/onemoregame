@@ -94,7 +94,7 @@ describe("ghost", () => {
       const start = await startRun({ store, secret, now }, null, "daily");
       if ("error" in start) throw new Error();
       const { s, log } = play(start.seed, start.twist.id);
-      const res = await finishRun({ store, secret, now: now + 70_000 }, null, { runId: start.runId, inputs: log, score: s.score, version: ENGINE_VERSION });
+      const res = await finishRun({ store, secret, now: now + 70_000 }, null, { runId: start.runId, ticket: start.ticket, inputs: log, score: s.score, version: ENGINE_VERSION });
       expect(res.status).toBe("ok");
       return { start, log, score: s.score };
     }

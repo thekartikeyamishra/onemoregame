@@ -3,6 +3,37 @@ export interface ChangelogEntry { date: string; title: string; items: string[] }
 
 export const changelog: ChangelogEntry[] = [
   {
+    date: "2026-10-27",
+    title: "Battle sound and in-game rulebook",
+    items: [
+      "Battle mode now has sound: pickups, dashes, knock-downs, every power, incoming-attack alarms, level-ups, countdowns, and victory/defeat jingles. One tap mutes it (shared with the Daily Arena setting).",
+      "A ? button (or the H key) opens the Battle rulebook anywhere: rules, every defender and attacker power with its cost and level, and controls.",
+    ],
+  },
+  {
+    date: "2026-10-27",
+    title: "Weekly leaderboard and faster, leaner scoring",
+    items: [
+      "New This week leaderboard: your best Daily score each day, added up Monday to Sunday (India time). Showing up every day is how you win the week.",
+      "See your exact rank, how many points you need to pass the player above you, and who is chasing you.",
+      "Streak flames on the board, a reset countdown, and last week's podium.",
+      "Guests see where a run would place before saving it.",
+      "Runs start instantly and results load faster: fewer database round trips per run.",
+    ],
+  },
+  {
+    date: "2026-10-27",
+    title: "Battle mode: multiplayer attackers vs defenders",
+    items: [
+      "New Battle mode for 1v1 up to 5v5: one team collects shards while the other sabotages, then roles swap. A tie goes to a 90-second Sudden Surge.",
+      "Seven defender abilities (Bulwark, Tractor, Stasis, Purge, Overdrive, Aegis Link, Supernova) and seven attacker abilities (Strike, Swarm, Erosion, Mirror, Surge, Jam, Eclipse), with level-ups on both sides.",
+      "Attackers can target one defender, tap an exact spot to drop a mine, or hit the whole team. Every attack is announced 3 seconds before it lands.",
+      "AI players in easy, medium and hard fill empty seats, and take over for anyone whose connection drops.",
+      "Join from any device with a gamer tag and an invite link. Only moves are sent over the network, and every result comes from the server's replay.",
+      "Flex board after each battle: points, knock-downs taken and caused, best combo, and MVP badges.",
+    ],
+  },
+  {
     date: "2026-10-24",
     title: "Levels: a 30-stage campaign",
     items: [

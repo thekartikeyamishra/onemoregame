@@ -77,6 +77,7 @@ const nextConfig: NextConfig = {
       { source: "/play", headers: [{ key: "Cache-Control", value: "private, no-store" }] },
       { source: "/play/sign-in", headers: [{ key: "X-Robots-Tag", value: "noindex" }] },
       { source: "/c/:id", headers: [{ key: "Cache-Control", value: "private, no-store" }, { key: "X-Robots-Tag", value: "noindex" }] },
+      { source: "/b/:code", headers: [{ key: "Cache-Control", value: "private, no-store" }, { key: "X-Robots-Tag", value: "noindex" }, { key: "Referrer-Policy", value: "no-referrer" }] },
       { source: "/api/:path*", headers: [{ key: "X-Robots-Tag", value: "noindex" }] },
     ];
   },

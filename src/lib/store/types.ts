@@ -9,8 +9,12 @@ export interface Tx {
   delete(collection: string, id: string): void;
 }
 
+/** One inequality filter (Firestore allows it alongside equality filters; it must match the orderBy field). */
+export interface Range { field: string; op: ">" | "<"; value: number }
+
 export interface Query {
   where?: Array<[field: string, value: unknown]>;
+  range?: Range;
   orderBy?: { field: string; direction?: "asc" | "desc" };
   limit?: number;
 }
@@ -23,7 +27,8 @@ export interface Store {
   getMany<T extends DocData>(collection: string, ids: string[]): Promise<Array<T | null>>;
   add(collection: string, data: DocData): Promise<string>;
   query<T extends DocData>(collection: string, q: Query): Promise<Array<{ id: string; data: T }>>;
-  count(collection: string, where: Array<[string, unknown]>): Promise<number>;
+  /** Server-side count aggregation (billed as 1 read per 1,000 matches). */
+  count(collection: string, where: Array<[string, unknown]>, range?: Range): Promise<number>;
   delete(collection: string, id: string): Promise<void>;
 }
 
@@ -47,6 +52,10 @@ export const C = {
   runStarts: "runStarts",
   runs: "runs",
   dailyScores: "dailyScores",
+  weeklyScores: "weeklyScores",
   challenges: "challenges",
   feedback: "feedback",
+  battleRooms: "battleRooms",
+  battleLanes: "battleLanes",
+  battleLaneSegs: "battleLaneSegs",
 } as const;

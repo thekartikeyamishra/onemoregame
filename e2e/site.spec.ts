@@ -204,3 +204,31 @@ test("health check reports the data store", async ({ request }) => {
   expect(r.status()).toBe(200);
   expect(await r.json()).toMatchObject({ ok: true, backend: "memory" });
 });
+
+test("MCP server answers over Streamable HTTP; logo and developer page are public", async ({ request, page }) => {
+  const rpc = (body: unknown) => request.post("/api/mcp", { data: body, headers: { Accept: "application/json, text/event-stream" } });
+  const init = await rpc({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "e2e", version: "1" } } });
+  expect(init.status()).toBe(200);
+  expect(init.headers()["access-control-allow-origin"]).toBe("*");
+  expect((await init.json()).result.serverInfo.name).toBe("onemore-game");
+  expect((await rpc({ jsonrpc: "2.0", method: "notifications/initialized" })).status()).toBe(202);
+  expect((await (await rpc({ jsonrpc: "2.0", id: 2, method: "tools/list" })).json()).result.tools).toHaveLength(7);
+  const daily = await (await rpc({ jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "get_daily_arena", arguments: {} } })).json();
+  expect(daily.result.isError).toBeUndefined();
+  expect(daily.result.content[0].text).toContain("Daily Arena");
+  expect((await request.get("/api/mcp")).status()).toBe(405);
+  const logo = await request.get("/brand/logo.png");
+  expect(logo.headers()["content-type"]).toContain("image/png");
+  await page.goto("/developers");
+  await expect(page.getByRole("heading", { name: "ONE MORE in your AI assistant" })).toBeVisible();
+  await expect(page.getByText("/api/mcp").first()).toBeVisible();
+});
+
+test("MCP card resource is served over HTTP; OpenAI challenge is hidden until configured", async ({ request }) => {
+  const r = await request.post("/api/mcp", { data: { jsonrpc: "2.0", id: 7, method: "resources/read", params: { uri: "ui://onemore/card-v1.html" } }, headers: { Accept: "application/json, text/event-stream" } });
+  expect(r.status()).toBe(200);
+  const body = await r.json();
+  expect(body.result.contents[0].mimeType).toBe("text/html;profile=mcp-app");
+  expect(body.result.contents[0].text).toContain("Play ONE MORE");
+  expect((await request.get("/.well-known/openai-apps-challenge")).status()).toBe(404);
+});

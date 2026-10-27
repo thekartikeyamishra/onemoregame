@@ -2,13 +2,18 @@ import "server-only";
 import { headers } from "next/headers";
 import { serverConfig } from "./env";
 import { getStore } from "./store";
-import { consume, type Limit } from "./rate-limit";
+import { consume, localAllow, type Limit } from "./rate-limit";
 import { clientKey } from "./request";
 import type { Ctx } from "./early-access";
 
 export async function serverCtx(): Promise<Ctx & { ownerEmail: string | null }> {
   const cfg = serverConfig();
   return { store: await getStore(), secret: cfg.appSecret, ownerEmail: cfg.ownerNotifyEmail };
+}
+
+/** Per-instance rate limit by hashed client IP (no database cost). */
+export function allowLocal(ctx: Ctx, limit: Limit, h: Headers, extra = ""): boolean {
+  return localAllow(limit, `${clientKey(h, ctx.secret)}${extra}`);
 }
 
 /** Rate-limit the current request by hashed client IP. */

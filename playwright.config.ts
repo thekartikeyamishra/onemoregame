@@ -31,6 +31,7 @@ export default defineConfig({
       MAIL_PROVIDER: "console",
       ALLOW_INSECURE_DEV_BACKENDS: "true",
       APP_SECRET: "e2e-secret-e2e-secret-e2e-secret-e2e-secret",
+      BATTLE_TEST_ROUND_SECONDS: "12",
     },
   },
 });

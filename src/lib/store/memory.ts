@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { AlreadyExistsError, type DocData, type Query, type Store, type Tx } from "./types";
+import { AlreadyExistsError, type DocData, type Query, type Range, type Store, type Tx } from "./types";
 
 /** In-process store for local development and tests. Not durable; never used in deployed environments. */
 export class MemoryStore implements Store {
@@ -79,6 +79,7 @@ export class MemoryStore implements Store {
   async query<T extends DocData>(collection: string, q: Query) {
     let rows = [...this.col(collection).entries()].map(([id, data]) => ({ id, data: structuredClone(data) as T }));
     for (const [f, v] of q.where ?? []) rows = rows.filter((r) => r.data[f] === v);
+    if (q.range) { const { field, op, value } = q.range; rows = rows.filter((r) => (op === ">" ? (r.data[field] as number) > value : (r.data[field] as number) < value)); }
     if (q.orderBy) {
       const { field, direction = "asc" } = q.orderBy;
       rows.sort((a, b) => {
@@ -93,7 +94,7 @@ export class MemoryStore implements Store {
     this.col(collection).delete(id);
   }
 
-  async count(collection: string, where: Array<[string, unknown]>) {
-    return (await this.query(collection, { where })).length;
+  async count(collection: string, where: Array<[string, unknown]>, range?: Range) {
+    return (await this.query(collection, { where, range })).length;
   }
 }
