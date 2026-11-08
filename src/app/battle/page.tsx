@@ -40,7 +40,7 @@ export default function BattlePage() {
           <ol>
             <li><strong>Pick sides.</strong> {TEAMS.A.name} and {TEAMS.B.name}, 1 to 5 players each, humans or AI in any mix: 1v1, 1v5, 3v2, you plus AI against friends, or you against AI.</li>
             <li><strong>Round 1.</strong> {TEAMS.A.name} defends: everyone plays their own copy of the same arena, collecting shards and building combos. {TEAMS.B.name} attacks from a command view that shows every defender live.</li>
-            <li><strong>Round 2.</strong> Roles swap. Same length: 3 or 5 minutes, chosen by the host.</li>
+            <li><strong>Round 2.</strong> Roles swap. Same length: 90 seconds (Quick), 3 or 5 minutes, chosen by the host.</li>
             <li><strong>Winner.</strong> Higher average defending score per defender. Tie? A 90-second Sudden Surge decides it.</li>
           </ol>
           <h2>Defender kit</h2>

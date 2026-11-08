@@ -33,13 +33,14 @@ export default function Privacy() {
           <p>We don&apos;t ask for your date of birth, phone number, location, government ID or school identity for early access. Our hosting provider may keep standard server logs (such as IP address and browser type) for security and operations.</p>
 
           <h2>Legal basis and consent</h2>
-          <p>We process your email to handle the access request you made. Product updates are sent only if you tick the optional box, and you can withdraw that consent any time using the link in any email. Withdrawing doesn&apos;t affect processing that already happened.</p>
+          <p>We process your email to handle the access request you made. Product updates are sent only if you tick the optional box. With that consent we may also send at most three short reminders if you stop playing (after 3, 7 and 21 days), then stop. You can withdraw consent any time using the one-click link in any email. Withdrawing doesn&apos;t affect processing that already happened.</p>
 
           <h2>Who processes it</h2>
           <ul>
             <li><strong>Vercel</strong>: website hosting and delivery.</li>
             <li><strong>Google (Firebase / Google Cloud)</strong>: database (Cloud Firestore).</li>
             <li><strong>Our transactional email provider (Resend)</strong>: delivering confirmation, invitation and optional update emails.</li>
+            <li><strong>Razorpay</strong> (website payments), <strong>Google Play</strong> and <strong>Apple</strong> (in-app payments) and <strong>RevenueCat</strong> (in-app purchase records): only if you buy something.</li>
           </ul>
           <p>These providers may process data outside India, including in the United States, under their own safeguards. We don&apos;t sell personal data or share it with advertisers.</p>
 
@@ -54,6 +55,12 @@ export default function Privacy() {
           <h2>Battle mode</h2>
           <p>To play Battle you choose a gamer tag; no email or account is needed. We store the room (gamer tags, teams, colours, results) and each player&apos;s game inputs for that room so the server can verify the result. A random seat key is kept in your browser so you can rejoin after a refresh; we store only a keyed hash of it. Battle rooms and inputs are deleted automatically after about 6 hours. If you rate a battle, we keep the rating and any comment you type (don&apos;t include personal details).</p>
 
+          <h2 id="reminders">Daily reminders (notifications)</h2>
+          <p>If you tap <strong>Remind me</strong>, your browser gives us a push address (a random URL at Google, Mozilla, Apple or Microsoft) so we can send one reminder a day at the hour you picked, only if you haven&apos;t played yet. We store that address, the hour, the last day you played and your streak count. Nothing else, and no name or email is needed. Turn it off from the Play screen or your browser settings; we delete the address then, after 30 days without play, or when your browser revokes it.</p>
+
+          <h2 id="purchases">Purchases</h2>
+          <p>Buying is optional. In the Android and iOS apps, payments are handled by <strong>Google Play</strong> or the <strong>Apple App Store</strong>, and purchase status reaches us through <strong>RevenueCat</strong> (our in-app purchase provider), linked to an anonymous ID or, if you sign in, your account ID. On the website, payments are handled by <strong>Razorpay</strong>. We never see or store your card, UPI or bank details. We store what you bought, when, the amount and the payment or order ID, so your items work on every device and for tax and accounting. If you delete your account, your items and profile are erased; the bare payment record (order ID, item, amount, date, without your email) is kept for as long as tax law requires.</p>
+
           <h2>AI assistants (ChatGPT, Grok and other MCP apps)</h2>
           <p>Our <a href="/developers">MCP server</a> lets AI assistants read public game information: today&apos;s Daily Arena and twist, the public leaderboard names and scores, level targets, rules, guides and public challenge details. It requires no account, reads no cookies and collects no personal data from the assistant or its users. We keep only short-lived, hashed IP counters for rate limiting, like the rest of the site. What you type into an assistant is handled by that assistant&apos;s provider under its own privacy policy; we receive only the tool request (for example &ldquo;level 7&rdquo;).</p>
 
@@ -66,6 +73,9 @@ export default function Privacy() {
             <li>Sign-in sessions: 30 days. One-time sign-in links: 15 minutes.</li>
             <li>Gameplay data and feedback: deleted with your early-access record, or when playtest data is reset before public launch.</li>
           </ul>
+
+          <h2 id="delete">Deleting your account</h2>
+          <p>You can delete your account at any time, in the app or on the web: <a href="/account">Your account → Delete my account</a> (instant when signed in), or <a href="/account/delete">request a deletion link by email</a>. Deletion removes your account and all linked game data immediately; provider backups expire within 30 days.</p>
 
           <h2 id="rights">Your rights</h2>
           <p>You can ask to access, correct or delete your data, withdraw consent, or raise a grievance. Email <ContactLink /> from the address concerned with &ldquo;Privacy request&rdquo; in the subject. We&apos;ll respond within 30 days. You may also have the right to complain to your data protection authority, such as the Data Protection Board of India.</p>

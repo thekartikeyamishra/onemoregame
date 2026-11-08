@@ -1,0 +1,38 @@
+{
+  "name": "one-more-mobile",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Android and iOS apps for ONE MORE (Capacitor). The apps load https://onemoregame.me and add native haptics, sharing, back-button handling, a splash screen and an offline practice mode.",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build:offline": "node scripts/build-offline.mjs",
+    "assets": "npx @capacitor/assets generate --android --ios --iconBackgroundColor \"#0a0f1f\" --iconBackgroundColorDark \"#0a0f1f\" --splashBackgroundColor \"#0a0f1f\" --splashBackgroundColorDark \"#0a0f1f\"",
+    "sync": "npm run build:offline && npx cap sync && node scripts/patch-native.mjs",
+    "add:android": "npm run build:offline && npx cap add android && npm run assets && node scripts/patch-native.mjs",
+    "add:ios": "npm run build:offline && npx cap add ios && npm run assets && node scripts/patch-native.mjs",
+    "open:android": "npx cap open android",
+    "open:ios": "npx cap open ios",
+    "doctor": "npx cap doctor",
+    "build:itch": "npm run build:offline && node scripts/build-itch.mjs",
+    "build:ext": "npm run build:offline && node scripts/build-extension.mjs"
+  },
+  "dependencies": {
+    "@capacitor/android": "8.5.3",
+    "@capacitor/app": "8.1.2",
+    "@capacitor/core": "8.5.3",
+    "@capacitor/filesystem": "8.1.4",
+    "@capacitor/haptics": "8.0.2",
+    "@capacitor/ios": "8.5.3",
+    "@capacitor/share": "8.0.3",
+    "@capacitor/splash-screen": "8.0.2",
+    "@capacitor/status-bar": "8.0.4",
+    "@revenuecat/purchases-capacitor": "13.7.4"
+  },
+  "devDependencies": {
+    "@capacitor/assets": "3.0.5",
+    "@capacitor/cli": "8.5.3",
+    "esbuild": "0.28.2"
+  }
+}

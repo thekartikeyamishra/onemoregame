@@ -1,0 +1,19 @@
+name: Daily jobs
+# Runs the win-back email job once a day (09:47 IST). Free on GitHub, independent of the hosting provider.
+# Setup: repo Settings → Secrets and variables → Actions → New secret CRON_SECRET (same value as in Vercel).
+on:
+  schedule:
+    - cron: "17 4 * * *"
+  workflow_dispatch:
+jobs:
+  winback:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Call win-back job
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then echo "CRON_SECRET not set; skipping"; exit 0; fi
+          curl -fsS --retry 3 --retry-delay 20 --max-time 90 -X POST \
+            -H "Authorization: Bearer $CRON_SECRET" https://onemoregame.me/api/cron/winback

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { track } from "@/lib/analytics";
+import { shareContent } from "@/lib/native";
 import { socials } from "@/lib/socials";
 
 /** Spoiler-free result line, Wordle-style: score, shards, best combo, power-ups, streak. No arena layout is revealed. */
@@ -29,10 +30,8 @@ export function ShareResult({ text, url, onNeedUrl }: { text: string; url: strin
   async function nativeShare() {
     const u = await link(); if (!u) return;
     track("share_clicked", { method: "native" });
-    if ("share" in navigator) {
-      try { await navigator.share({ text: `${text}\n${u}` }); return; } catch { /* cancelled or unsupported */ }
-    }
-    try { await navigator.clipboard.writeText(`${text}\n${u}`); setStatus("Copied — paste it anywhere."); } catch { setStatus("Copy blocked by the browser."); }
+    const how = await shareContent({ title: "ONE MORE", text, url: u });
+    if (how === "copied") setStatus("Copied — paste it anywhere.");
   }
 
   async function open(kind: "whatsapp" | "x") {

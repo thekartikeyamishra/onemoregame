@@ -72,3 +72,14 @@ If you didn't ask for this, you can ignore this email.`;
   const html = layout("Sign in to play", `<p style="line-height:1.6">This link works once and expires in 15 minutes.</p>${button(link, "Sign in")}`, "If you didn't ask for this, you can ignore this email.");
   return { subject, text, html };
 }
+
+export function deleteAccountEmail(link: string) {
+  const subject = "Confirm deleting your ONE MORE account";
+  const text = `You asked to delete your ONE MORE account and all its data (scores, streaks, levels, challenges).
+Open this link to confirm. It expires in 60 minutes:
+${link}
+
+If you didn't ask for this, ignore this email and nothing will change.`;
+  const html = layout("Delete your account?", `<p style="line-height:1.6">This permanently deletes your account, scores, streaks, level progress and challenges. The link expires in 60 minutes.</p>${button(link, "Review and delete")}`, "If you didn't ask for this, ignore this email and nothing will change.");
+  return { subject, text, html };
+}

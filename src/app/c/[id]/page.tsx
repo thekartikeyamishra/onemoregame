@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { PlayClient } from "@/game/PlayClient";
 import { currentStreak, dayKey, getChallengePublic, getPlayer } from "@/lib/game-service";
+import { ownershipOf } from "@/lib/shop/service";
 import { serverCtx } from "@/lib/server";
 import { currentPlayer } from "@/lib/session";
 
@@ -30,6 +31,7 @@ export default async function ChallengePage({ params }: Params) {
       <div className="container">
         <h1 className="sr-only">ONE MORE friend challenge</h1>
         <PlayClient
+          look={player ? ownershipOf(player).equipped : null} owned={player ? ownershipOf(player).owned : []}
           player={player ? { displayName: player.displayName, bestScore: player.bestScore, streak: currentStreak(player, dayKey()) } : null}
           challenge={{ id, score: challenge.score, by: challenge.displayName, referralCode: challenge.referralCode, hasGhost: challenge.hasGhost, twist: challenge.twist }}
         />

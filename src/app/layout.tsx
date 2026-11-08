@@ -4,6 +4,7 @@ import "./globals.css";
 import type { Metadata, Viewport } from "next";
 import { SiteFooter } from "@/components/SiteFooter";
 import { SiteHeader } from "@/components/SiteHeader";
+import { NativeAppSetup } from "@/components/NativeAppSetup";
 import { site } from "@/lib/site";
 
 export const metadata: Metadata = {
@@ -19,7 +20,7 @@ export const metadata: Metadata = {
   other: site.ads.client ? { "google-adsense-account": site.ads.client } : undefined,
 };
 
-export const viewport: Viewport = { themeColor: "#0a0f1f", colorScheme: "dark" };
+export const viewport: Viewport = { themeColor: "#0a0f1f", colorScheme: "dark", viewportFit: "cover" };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -31,6 +32,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <SiteHeader />
         <main id="main">{children}</main>
         <SiteFooter />
+        <NativeAppSetup />
       </body>
     </html>
   );

@@ -82,7 +82,7 @@ export function BattleHelp({ role = "rules", live = false }: { role?: "defend" |
                 </>
               ) : (
                 <ul>
-                  <li><b>Steer:</b> WASD / arrow keys, move the mouse, or drag on touch.</li>
+                  <li><b>Steer:</b> WASD / arrow keys, move the mouse, or on touch screens put a thumb down anywhere and drag (a joystick appears, so your thumb never hides the orb). A second finger or double-tap dashes.</li>
                   <li><b>Dash</b> (brief invulnerability): Space, click, double-tap or the Dash button.</li>
                   <li><b>Defender powers:</b> number keys 1–7 or tap the buttons under the arena.</li>
                   <li><b>Attacker:</b> tap a power, then tap a defender (Strike: tap the exact spot for the mine). &ldquo;Whole team&rdquo; button from level 2.</li>

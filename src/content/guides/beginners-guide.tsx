@@ -31,7 +31,7 @@ export const beginnersGuide: Guide = {
       body: (
         <>
           <ul>
-            <li><strong>Steer:</strong> arrow keys or WASD, move the mouse, or drag on a touch screen. The orb accelerates toward the direction you hold and glides to a stop when you let go.</li>
+            <li><strong>Steer:</strong> arrow keys or WASD, move the mouse, or on a touch screen put your thumb down anywhere and drag: a small joystick appears there, so your thumb never covers the orb. The orb accelerates toward the direction you hold and glides to a stop when you let go.</li>
             <li><strong>Dash:</strong> Space, a mouse click, a double-tap, or the on-screen Dash button. It fires in the direction you are moving (or last moved), makes you invulnerable for {rules.dashInvuln} seconds and then needs {rules.dashCooldown} seconds to recharge. A thin arc around the orb shows the cooldown.</li>
             <li><strong>Pause:</strong> Esc or P. <strong>One more:</strong> R on the results screen.</li>
           </ul>

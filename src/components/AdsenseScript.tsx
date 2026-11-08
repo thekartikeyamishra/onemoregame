@@ -1,16 +1,30 @@
+"use client";
+
+import { useEffect } from "react";
+import { isNativeApp } from "@/lib/native";
 import { site } from "@/lib/site";
 
 export const ADSENSE_SRC = (client: string) => `https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${client}`;
 
+/** Loads the AdSense tag (exactly as AdSense issues it) once, after the page is interactive. */
+export function loadAdsense(): boolean {
+  if (!site.ads.enabled || !site.ads.client || typeof document === "undefined") return false;
+  // AdSense web ads are not allowed inside native app WebViews: the Android/iOS apps never load ad code.
+  if (isNativeApp()) return false;
+  if (document.querySelector("script[data-onemore-ads]")) return true;
+  const s = document.createElement("script");
+  s.async = true; s.src = ADSENSE_SRC(site.ads.client); s.crossOrigin = "anonymous"; s.dataset.onemoreAds = "1";
+  document.head.appendChild(s);
+  return true;
+}
+
 /**
- * The AdSense head tag, exactly as AdSense issues it. React hoists async scripts into <head> during server rendering
- * and de-duplicates them by src, so placing this on a page (and in AdSlot) loads the script once.
- * Rendered only on content pages and only when NEXT_PUBLIC_ADS_ENABLED=true: the game, challenge links, forms and
- * account pages never load ad code. Auto ads (if switched on in AdSense) can therefore only appear on content pages.
+ * Placed on content pages only (never the game, challenge links, forms or account pages), so Auto ads can only
+ * appear there. Site ownership is verified with the google-adsense-account meta tag and /ads.txt.
  */
 export function AdsenseScript() {
-  if (!site.ads.enabled || !site.ads.client) return null;
-  return <script async src={ADSENSE_SRC(site.ads.client)} crossOrigin="anonymous" />;
+  useEffect(() => { loadAdsense(); }, []);
+  return null;
 }
 
 /** Google's required advertising disclosure, shown on the privacy and cookie pages while ads are enabled. */

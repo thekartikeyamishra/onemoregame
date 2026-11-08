@@ -9,6 +9,7 @@ import { pageMetadata, videoGameLd } from "@/lib/seo";
 import { JsonLd } from "@/components/JsonLd";
 import { serverCtx } from "@/lib/server";
 import { currentPlayer } from "@/lib/session";
+import { ownershipOf } from "@/lib/shop/service";
 
 export const metadata: Metadata = {
   ...pageMetadata("/play", "Play today's Daily Arena", "Play ONE MORE in your browser: today's Daily Arena is free, no sign-up. Sixty seconds, one shared arena, beat your friends."),
@@ -34,7 +35,10 @@ export default async function PlayPage() {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "1rem", flexWrap: "wrap", marginBottom: "1.5rem" }}>
           <h1 style={{ fontSize: "var(--step-3)", margin: 0 }}>Play ONE MORE</h1>
           {signupId ? (
-            <form action={signOutAction}><button className="btn btn--sm" type="submit">Sign out</button></form>
+            <div className="btn-row" style={{ margin: 0 }}>
+              <Link className="btn btn--sm" href="/account">Account</Link>
+              <form action={signOutAction}><button className="btn btn--sm" type="submit">Sign out</button></form>
+            </div>
           ) : (
             <Link className="btn btn--sm" href="/play/sign-in">Already confirmed? Sign in</Link>
           )}
@@ -45,7 +49,7 @@ export default async function PlayPage() {
           <PlayClient
             dailyTwist={twistInfo(dailyTwist(dayKey()))}
             levels={allLevels().map((l) => ({ n: l.n, kind: l.kind, name: l.name, description: l.description, target: l.target, stars: l.stars, seconds: Math.round((l.rules.durationTicks ?? RUN_TICKS) / TPS) }))}
-            levelProgress={player?.levels ?? null} player={player ? { displayName: player.displayName, bestScore: player.bestScore, streak: currentStreak(player, dayKey()) } : null} />
+            levelProgress={player?.levels ?? null} look={player ? ownershipOf(player).equipped : null} owned={player ? ownershipOf(player).owned : []} player={player ? { displayName: player.displayName, bestScore: player.bestScore, streak: currentStreak(player, dayKey()) } : null} />
         )}
       </div>
     </section>

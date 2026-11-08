@@ -60,7 +60,7 @@ export function unsubscribeToken(secret: string, signupId: string) {
   return `${signupId}.${hmac(secret, `unsub:${signupId}`).slice(0, 40)}`;
 }
 
-function unsubscribeUrl(secret: string, signupId: string) {
+export function unsubscribeUrl(secret: string, signupId: string) {
   return `${site.url}/unsubscribe?token=${unsubscribeToken(secret, signupId)}`;
 }
 
@@ -282,7 +282,11 @@ export async function createCampusLead(ctx: Ctx, input: CampusInput, ownerEmail:
 
 /** Erase a person's records, including gameplay data (privacy request). Returns false if no record was found. */
 export async function deleteSignupByEmail(ctx: Ctx, email: string): Promise<boolean> {
-  const id = signupIdFor(ctx.secret, email);
+  return deleteAccountById(ctx, signupIdFor(ctx.secret, email));
+}
+
+/** Erase an account by its id (used by in-app/web self-service deletion). Returns false if no signup record existed. */
+export async function deleteAccountById(ctx: Ctx, id: string): Promise<boolean> {
   const related: Array<[string, string]> = [
     [C.sessions, "signupId"], [C.loginTokens, "signupId"], [C.runs, "signupId"], [C.runStarts, "signupId"],
     [C.dailyScores, "signupId"], [C.weeklyScores, "signupId"], [C.challenges, "ownerId"], [C.feedback, "signupId"],

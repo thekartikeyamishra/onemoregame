@@ -17,7 +17,7 @@ test("mobile navigation works at 320px and the page doesn't scroll sideways", as
   await nav.getByRole("link", { name: "How to Play" }).click();
   await expect(page).toHaveURL(/how-to-play/);
   await expect(nav).toBeHidden();
-  for (const p of ["/", "/how-to-play", "/campus-clash", "/early-access"]) {
+  for (const p of ["/", "/how-to-play", "/campus-clash", "/early-access", "/shop"]) {
     await page.goto(p);
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     expect(overflow, p).toBeLessThanOrEqual(0);

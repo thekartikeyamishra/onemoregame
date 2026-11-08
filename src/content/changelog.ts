@@ -3,6 +3,49 @@ export interface ChangelogEntry { date: string; title: string; items: string[] }
 
 export const changelog: ChangelogEntry[] = [
   {
+    date: "2026-11-09",
+    title: "Daily reminders",
+    items: [
+      "Optional reminder for tomorrow's arena: one notification a day at 7 pm, skipped if you've already played. Works without an account.",
+      "Turn it on after a Daily run, or with the new switch on the Play screen. Turn it off the same way.",
+    ],
+  },
+  {
+    date: "2026-11-08",
+    title: "Battle rebuilt for fun and clarity, thumb-stick controls, Chrome extension",
+    items: [
+      "Touch screens: put your thumb down anywhere and drag. A small joystick appears, so your thumb never hides your orb. A second finger dashes.",
+      "Battle: a live tug-of-war score bar, the exact score to beat, your role and goal in one line, a feed of who attacked whom, lead-change alerts and a final-10-seconds pulse.",
+      "Battle fills the whole screen on phones, tablets and desktops in portrait and landscape, so nothing overlaps or needs scrolling.",
+      "Friends now appear in the lobby within about a second, with a \"joined\" alert and connected/away dots. Other players move smoothly instead of freezing and jumping.",
+      "New: Quick match vs AI (one tap, 90-second rounds) and Quick 90 s rounds for friends.",
+      "New Chrome extension: practice from your toolbar, even offline, with an optional daily reminder.",
+      "New Refunds, cancellations and delivery page.",
+    ],
+  },
+  {
+    date: "2026-10-28",
+    title: "Shop: skins, trails, Replay Studio and the Founder Pack",
+    items: [
+      "Watch a replay of any verified run, free: tap 🎬 Watch replay on the results screen.",
+      "Replay Studio saves it as a 30-second vertical video for Stories, Reels and WhatsApp.",
+      "Five orb skins and three trails. Your skin colour shows next to your name on the leaderboard.",
+      "Founder Pack (first year only): everything, plus a permanent ★ Founder badge and your name on the Founders Wall.",
+      "Everything in the Shop is cosmetic. Scores, rules and every game mode stay free and skill-only.",
+    ],
+  },
+  {
+    date: "2026-10-28",
+    title: "Built for phones, tablets and the coming Android & iOS apps",
+    items: [
+      "Full-screen play on phones in portrait and landscape, with room for notches and home indicators.",
+      "Vibration feedback on hits, power-ups and big combos (turn it off in Controls & settings).",
+      "Install ONE MORE to your home screen from the browser menu.",
+      "Delete your account yourself, any time: Your account → Delete my account.",
+      "Battle: report or hide a player from the lobby or the results board.",
+    ],
+  },
+  {
     date: "2026-10-27",
     title: "Battle sound and in-game rulebook",
     items: [

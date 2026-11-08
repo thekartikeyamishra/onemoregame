@@ -1,8 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { haptic } from "@/lib/native";
 import { ARENA_R, DASH_COOLDOWN, GhostPlayer, TWISTS, InputRecorder, MAGNET_RANGE, POWER_DURATION, POWER_LIFETIME, POWER_R, TPS, createGame, dirIndex, resultOf, step, type GameState, type InputLog, type PowerType, type Rules, type RunResult, type TwistId } from "./engine";
 import type { Sfx } from "./audio";
+import { DEFAULT_LOOK, TrailFx, drawOrb, type Look } from "./cosmetics";
+import { TouchStick } from "./touch-stick";
 
 type Particle = { x: number; y: number; vx: number; vy: number; life: number; color: string };
 const COLORS = { bg: "#060912", grid: "rgba(160,180,255,0.06)", ring: "rgba(62,230,240,0.55)", cyan: "#3ee6f0", violet: "#8b7bff", amber: "#ffbf47", white: "#ffffff", green: "#5ef0a6" };
@@ -20,8 +23,25 @@ export interface RunEnd { log: InputLog; result: RunResult }
  * Plays one run for `seed`: 3-2-1 countdown, fixed-timestep simulation, input recording, rendering.
  * Calls onEnd exactly once when the run is over. Unmount to abandon a run.
  */
-export function GameCanvas({ seed, twist = "classic", rules = null, level = null, ghost = null, ghostName = null, sfx, reducedEffects, onEnd, onQuit }: {
+/** Bottom banner that always fits: one line if it can, otherwise title and description on two lines, shrinking to fit. */
+function fitBanner(ctx: CanvasRenderingContext2D, title: string, desc: string, W: number, H: number) {
+  const max = W - 24;
+  const one = `${title}: ${desc}`;
+  ctx.font = "700 16px system-ui, sans-serif";
+  if (ctx.measureText(one).width <= max) { ctx.fillText(one, W / 2, H - 20); return; }
+  // Two lines sit higher so they clear the Pause/Dash buttons in the corner.
+  for (const [text, y] of [[title, H - 82], [desc, H - 62]] as const) {
+    let size = 15;
+    ctx.font = `700 ${size}px system-ui, sans-serif`;
+    while (size > 10 && ctx.measureText(text).width > max) { size--; ctx.font = `700 ${size}px system-ui, sans-serif`; }
+    ctx.fillText(text, W / 2, y);
+  }
+}
+
+export function GameCanvas({ seed, twist = "classic", rules = null, level = null, ghost = null, ghostName = null, look: orbLook = DEFAULT_LOOK, sfx, reducedEffects, onEnd, onQuit }: {
   seed: number; twist?: TwistId; ghost?: InputLog | null; ghostName?: string | null;
+  /** Cosmetic skin and trail (drawing only; the engine never sees it). */
+  look?: Look;
   /** Levels mode: server-supplied rule overrides and the level to show in the HUD. */
   rules?: Partial<Rules> | null; level?: { n: number; name: string; description: string; target: number } | null;
   sfx: Sfx; reducedEffects: boolean; onEnd: (r: RunEnd) => void; onQuit: () => void;
@@ -48,8 +68,11 @@ export function GameCanvas({ seed, twist = "classic", rules = null, level = null
     const ghostLabel = (ghostName ?? "Friend").slice(0, 16);
     const shardR = state.rules.shardR;
     const rec = new InputRecorder();
+    const trail = new TrailFx(reducedEffects ? "none" : orbLook.trail, orbLook.skin);
     const keys = new Set<string>();
     let pointer: { x: number; y: number } | null = null;
+    const stick = new TouchStick();
+    const coarse = window.matchMedia("(pointer: coarse)").matches;
     let W = 0, H = 0, scale = 1, raf = 0, acc = 0, last = performance.now();
     let countdown = 3 * TPS + 20; // ~3.3 s in render frames at 60 Hz
     let lastCount = 4, shake = 0, flash = 0, ended = false, lastTap = 0;
@@ -57,7 +80,8 @@ export function GameCanvas({ seed, twist = "classic", rules = null, level = null
     const floaters: Array<{ x: number; y: number; text: string; life: number }> = [];
 
     const resize = () => {
-      const r = wrap.getBoundingClientRect(), dpr = Math.min(window.devicePixelRatio || 1, 2);
+      // The canvas box (not the stage): in full-screen play the stage is padded for notches and home indicators.
+      const r = canvas.getBoundingClientRect(), dpr = Math.min(window.devicePixelRatio || 1, 2);
       W = r.width; H = r.height;
       canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -71,7 +95,9 @@ export function GameCanvas({ seed, twist = "classic", rules = null, level = null
       if (keys.has("ArrowRight") || keys.has("d")) dx += 1;
       if (keys.has("ArrowUp") || keys.has("w")) dy -= 1;
       if (keys.has("ArrowDown") || keys.has("s")) dy += 1;
-      if (dx === 0 && dy === 0 && pointer) {
+      const sv = dx === 0 && dy === 0 ? stick.vector() : null;
+      if (sv) { dx = sv.dx; dy = sv.dy; }
+      else if (dx === 0 && dy === 0 && pointer && !stick.active) {
         const [px, py] = toScreen(state.x, state.y);
         const vx = pointer.x - px, vy = pointer.y - py;
         if (vx * vx + vy * vy > 14 * 14) { dx = vx; dy = vy; }
@@ -93,11 +119,11 @@ export function GameCanvas({ seed, twist = "classic", rules = null, level = null
       rec.record(state.tick, input);
       ghostRun?.step();
       for (const e of step(state, input)) {
-        if (e.type === "pickup") { burst(e.x, e.y, COLORS.amber, 14); floaters.push({ x: e.x, y: e.y, text: `+${e.points}`, life: 1 }); sfx.pickup(e.combo); }
-        else if (e.type === "hit") { burst(e.x, e.y, COLORS.violet, 22); if (!reducedEffects) shake = 10; flash = 1; floaters.push({ x: e.x, y: e.y - 20, text: "−3s", life: 1 }); sfx.hit(); }
+        if (e.type === "pickup") { burst(e.x, e.y, COLORS.amber, 14); floaters.push({ x: e.x, y: e.y, text: `+${e.points}`, life: 1 }); sfx.pickup(e.combo); if (e.combo >= 3) haptic(e.combo >= 6 ? "medium" : "light"); }
+        else if (e.type === "hit") { burst(e.x, e.y, COLORS.violet, 22); if (!reducedEffects) shake = 10; flash = 1; floaters.push({ x: e.x, y: e.y - 20, text: "−3s", life: 1 }); sfx.hit(); haptic("heavy"); }
         else if (e.type === "nearMiss") { floaters.push({ x: e.x, y: e.y, text: `+${e.points} close!`, life: 1 }); sfx.nearMiss(); }
-        else if (e.type === "shieldBreak") { burst(e.x, e.y, POWER_LOOK.shield.color, 24); floaters.push({ x: e.x, y: e.y - 20, text: "Shield!", life: 1 }); sfx.shield(); setAnnounce("Shield absorbed a hit"); }
-        else if (e.type === "power") { burst(e.x, e.y, POWER_LOOK[e.power].color, 18); floaters.push({ x: e.x, y: e.y, text: POWER_LOOK[e.power].label, life: 1 }); sfx.power(); setAnnounce(`${POWER_LOOK[e.power].label} active`); }
+        else if (e.type === "shieldBreak") { burst(e.x, e.y, POWER_LOOK.shield.color, 24); floaters.push({ x: e.x, y: e.y - 20, text: "Shield!", life: 1 }); sfx.shield(); haptic("medium"); setAnnounce("Shield absorbed a hit"); }
+        else if (e.type === "power") { burst(e.x, e.y, POWER_LOOK[e.power].color, 18); floaters.push({ x: e.x, y: e.y, text: POWER_LOOK[e.power].label, life: 1 }); sfx.power(); haptic("medium"); setAnnounce(`${POWER_LOOK[e.power].label} active`); }
         else if (e.type === "dash") sfx.dash();
       }
     };
@@ -165,9 +191,9 @@ export function GameCanvas({ seed, twist = "classic", rules = null, level = null
       // Player
       const [px, py] = toScreen(state.x, state.y);
       const blink = state.invuln > 0 && state.dashing === 0 && Math.floor(state.tick / 4) % 2 === 0;
-      if (!reducedEffects) { ctx.shadowColor = COLORS.cyan; ctx.shadowBlur = state.dashing ? 30 : 18; }
-      ctx.fillStyle = blink ? COLORS.white : COLORS.cyan;
-      ctx.beginPath(); ctx.arc(px, py, 10 * scale, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0;
+      if (countdown <= 0 && !pausedRef.current) trail.push(px, py);
+      trail.draw(ctx, 10 * scale, state.tick);
+      drawOrb(ctx, px, py, 10 * scale, orbLook.skin, state.tick, { glow: state.dashing ? 30 : 18, flash: blink, reduced: reducedEffects });
       if (state.active.shield > 0) { ctx.strokeStyle = POWER_LOOK.shield.color; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(px, py, 19 * scale, 0, Math.PI * 2); ctx.stroke(); }
       if (state.active.magnet > 0) { ctx.strokeStyle = "rgba(255,191,71,0.25)"; ctx.setLineDash([4, 6]); ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(px, py, MAGNET_RANGE * scale, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); }
       // Dash cooldown arc
@@ -206,11 +232,11 @@ export function GameCanvas({ seed, twist = "classic", rules = null, level = null
         ctx.fillText(p >= 1 ? "TARGET CLEARED ✓" : `Target ${level.target.toLocaleString("en-IN")}`, 16 + bw + 8, 46);
         if (state.tick < 4 * TPS) {
           ctx.textAlign = "center"; ctx.fillStyle = COLORS.amber; ctx.font = "700 16px system-ui, sans-serif";
-          ctx.fillText(`Level ${level.n} · ${level.name}: ${level.description}`, W / 2, H - 20);
+          fitBanner(ctx, `Level ${level.n} · ${level.name}`, level.description, W, H);
         }
       } else if (twist !== "classic" && state.tick < 4 * TPS) {
         ctx.textAlign = "center"; ctx.fillStyle = COLORS.amber; ctx.font = "700 16px system-ui, sans-serif";
-        ctx.fillText(`${TWISTS[twist].name}: ${TWISTS[twist].description}`, W / 2, H - 20);
+        fitBanner(ctx, TWISTS[twist].name, TWISTS[twist].description, W, H);
       }
       if (state.combo > 1) { ctx.textAlign = "left"; ctx.fillStyle = COLORS.cyan; ctx.font = "700 16px system-ui, sans-serif"; ctx.fillText(`COMBO ×${state.combo}`, 16, 56 + oy); }
       let hy = (state.combo > 1 ? 80 : 56) + oy;
@@ -223,11 +249,14 @@ export function GameCanvas({ seed, twist = "classic", rules = null, level = null
         ctx.fillStyle = look.color; ctx.fillRect(16, hy + 5, 90 * (state.active[t] / POWER_DURATION[t]), 4);
         hy += 26;
       }
+      stick.draw(ctx);
       if (countdown > 0) {
         const n = Math.ceil(countdown / TPS);
         ctx.fillStyle = "rgba(6,9,18,0.55)"; ctx.fillRect(0, 0, W, H);
         ctx.textAlign = "center"; ctx.fillStyle = "#ffffff"; ctx.font = `700 ${Math.round(Math.min(W, H) * 0.18)}px system-ui, sans-serif`;
         ctx.fillText(n > 3 ? "3" : String(Math.max(n, 1)), W / 2, H / 2 + Math.min(W, H) * 0.06);
+        ctx.font = "600 15px system-ui, sans-serif"; ctx.fillStyle = "rgba(238,241,250,0.85)";
+        ctx.fillText(coarse ? "Drag anywhere to steer · second finger to dash" : "Arrows/WASD or mouse to steer · Space to dash", W / 2, H / 2 + Math.min(W, H) * 0.06 + 36);
       }
     };
 
@@ -248,20 +277,34 @@ export function GameCanvas({ seed, twist = "classic", rules = null, level = null
       while (acc >= 1 / TPS && steps < 8 && !state.over) { simulate(); acc -= 1 / TPS; steps++; }
       draw();
       if (state.over && !ended) {
-        ended = true; sfx.end();
+        ended = true; sfx.end(); haptic("success");
         setAnnounce(`Run over. Score ${state.score}.`);
         onEndRef.current({ log: rec.log, result: resultOf(state, rec.log.length / 3) });
       }
     };
 
     const local = (e: PointerEvent) => { const r = canvas.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
-    const onMove = (e: PointerEvent) => { if (e.pointerType === "mouse" || e.buttons) pointer = local(e); };
-    const onDown = (e: PointerEvent) => {
-      pointer = local(e);
-      if (e.pointerType === "touch") { setTouch(true); const t = performance.now(); if (t - lastTap < 280) dashRef.current = true; lastTap = t; }
-      else dashRef.current = true;
+    const onMove = (e: PointerEvent) => {
+      const p = local(e);
+      if (e.pointerType === "touch") { stick.move(e, p.x, p.y); return; }
+      if (e.pointerType === "mouse" || e.buttons) pointer = p;
     };
-    const onUp = (e: PointerEvent) => { if (e.pointerType !== "mouse") pointer = null; };
+    const onDown = (e: PointerEvent) => {
+      const p = local(e);
+      const role = stick.down(e, p.x, p.y);
+      if (role) {
+        // Touch: floating thumb-stick (the orb never hides under the thumb); second finger or double-tap dashes.
+        setTouch(true);
+        try { canvas.setPointerCapture(e.pointerId); } catch { /* old browsers */ }
+        const t = performance.now();
+        if (role === "dash" || t - lastTap < 260) dashRef.current = true;
+        lastTap = t;
+        return;
+      }
+      pointer = p;
+      dashRef.current = true;
+    };
+    const onUp = (e: PointerEvent) => { stick.up(e); if (e.pointerType !== "mouse") pointer = null; };
     const onLeave = (e: PointerEvent) => { if (e.pointerType === "mouse") pointer = null; };
     const onKey = (e: KeyboardEvent) => {
       const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
@@ -272,31 +315,36 @@ export function GameCanvas({ seed, twist = "classic", rules = null, level = null
         keys.add(k);
       } else keys.delete(k);
     };
-    const onBlur = () => { keys.clear(); if (!ended) setPaused(true); };
+    const onBlur = () => { keys.clear(); stick.reset(); if (!ended) setPaused(true); };
     const onVis = () => { if (document.hidden && !ended) setPaused(true); };
 
     resize();
     const ro = new ResizeObserver(resize); ro.observe(wrap);
+    // Full-screen play on phones (see .game-stage CSS): lock page scrolling and pull-to-refresh while a run is live.
+    document.documentElement.classList.add("is-playing");
     canvas.addEventListener("pointermove", onMove); canvas.addEventListener("pointerdown", onDown);
     canvas.addEventListener("pointerup", onUp); canvas.addEventListener("pointerleave", onLeave);
+    canvas.addEventListener("pointercancel", onUp);
     window.addEventListener("keydown", onKey); window.addEventListener("keyup", onKey);
     window.addEventListener("blur", onBlur); document.addEventListener("visibilitychange", onVis);
     canvas.focus();
     raf = requestAnimationFrame(loop);
     return () => {
       cancelAnimationFrame(raf); ro.disconnect();
+      document.documentElement.classList.remove("is-playing");
       canvas.removeEventListener("pointermove", onMove); canvas.removeEventListener("pointerdown", onDown);
       canvas.removeEventListener("pointerup", onUp); canvas.removeEventListener("pointerleave", onLeave);
+      canvas.removeEventListener("pointercancel", onUp);
       window.removeEventListener("keydown", onKey); window.removeEventListener("keyup", onKey);
       window.removeEventListener("blur", onBlur); document.removeEventListener("visibilitychange", onVis);
     };
-  }, [seed, twist, rules, level, ghost, ghostName, sfx, reducedEffects]);
+  }, [seed, twist, rules, level, ghost, ghostName, sfx, reducedEffects, orbLook]);
 
   return (
     <div className="game-stage" ref={wrapRef}>
       <canvas
         ref={canvasRef} tabIndex={0} className="game-canvas"
-        role="img" aria-label="ONE MORE arena. Steer with arrow keys, WASD, mouse or touch. Space, click or double-tap to dash. Escape to pause."
+        role="img" aria-label="ONE MORE arena. Steer with arrow keys, WASD, the mouse, or drag a thumb anywhere on touch screens. Space, click, a second finger or double-tap to dash. Escape to pause."
       />
       <p className="sr-only" role="status" aria-live="assertive">{announce}</p>
       <div className="game-controls">

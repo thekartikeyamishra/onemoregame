@@ -20,7 +20,12 @@ export const limits = {
   mcpPerIp: { name: "mcp-ip", max: 300, windowMs: 60 * 60 * 1000 },
   runFinishPerIp: { name: "rf-ip", max: 400, windowMs: 60 * 60 * 1000 },
   rankPerIp: { name: "rk-ip", max: 300, windowMs: 60 * 60 * 1000 },
+  accountDeletePerIp: { name: "ad-ip", max: 10, windowMs: 60 * 60 * 1000 },
+  battleReportPerIp: { name: "br-ip", max: 30, windowMs: 60 * 60 * 1000 },
   battleCreatePerIp: { name: "bc-ip", max: 20, windowMs: 60 * 60 * 1000 },
+  pushPerIp: { name: "pu-ip", max: 60, windowMs: 60 * 60 * 1000 },
+  shopOrderPerIp: { name: "so-ip", max: 30, windowMs: 60 * 60 * 1000 },
+  shopSyncPerIp: { name: "ss-ip", max: 60, windowMs: 60 * 60 * 1000 },
   battleJoinPerIp: { name: "bj-ip", max: 60, windowMs: 60 * 60 * 1000 },
 } satisfies Record<string, Limit>;
 

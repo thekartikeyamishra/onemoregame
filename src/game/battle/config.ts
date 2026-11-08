@@ -16,7 +16,9 @@ export const TEAMS: Record<TeamId, { name: string; color: string }> = {
 };
 export const MAX_TEAM = 5;
 export const MAX_PLAYERS = 10;
-export const ROUND_SECONDS = [180, 300] as const;
+/** 90 s "Quick" rounds are the default: short, intense, and a whole match fits in about four minutes. */
+export const ROUND_SECONDS = [90, 180, 300] as const;
+export const roundLabel = (s: number) => (s < 120 ? "90 s" : `${s / 60} min`);
 export type RoundSeconds = (typeof ROUND_SECONDS)[number];
 export const TIEBREAK_SECONDS = 90;
 export const COUNTDOWN_MS = 6000;

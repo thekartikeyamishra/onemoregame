@@ -2,7 +2,8 @@
 import type { BotLevel, RoundSeconds, TeamId } from "@/game/battle/config";
 import type { AttackPlay, RoundOutcome } from "@/game/battle/sim";
 
-export interface PublicPlayer { id: string; name: string; color: string; team: TeamId; bot: BotLevel | null }
+/** seenAt: last time this player's device checked in (lobby presence). */
+export interface PublicPlayer { id: string; name: string; color: string; team: TeamId; bot: BotLevel | null; seenAt?: number }
 export interface PublicRound {
   n: number; seconds: number; seed: number; defenders: TeamId[]; attackers: TeamId | null;
   roster: Array<{ id: string; team: TeamId; bot: BotLevel | null }>;

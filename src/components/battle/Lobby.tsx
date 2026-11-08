@@ -1,12 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { ATTACK_ABILITIES, DEFENDER_ABILITIES, MAX_TEAM, TEAMS, type BotLevel, type TeamId } from "@/game/battle/config";
+import { ATTACK_ABILITIES, DEFENDER_ABILITIES, MAX_TEAM, ROUND_SECONDS, TEAMS, roundLabel, type BotLevel, type TeamId } from "@/game/battle/config";
 import type { PublicRoom } from "@/lib/battle-types";
 import { track } from "@/lib/analytics";
 import { InvitePanel } from "./InvitePanel";
+import { ReportButton } from "./ReportButton";
 
-export function Lobby({ room, act }: { room: PublicRoom; act: (b: Record<string, unknown>) => Promise<boolean> }) {
+export function Lobby({ room, act, now, onHide = () => undefined }: { room: PublicRoom; act: (b: Record<string, unknown>) => Promise<boolean>; now: number; onHide?: () => void }) {
   const host = room.hostId === room.you;
   const me = room.players.find((p) => p.id === room.you);
   const [busy, setBusy] = useState(false);
@@ -15,8 +16,17 @@ export function Lobby({ room, act }: { room: PublicRoom; act: (b: Record<string,
   const a = count("A"), b = count("B");
   const format = a && b ? `${a}v${b}` : "Waiting for players";
 
+  const hostName = room.players.find((p) => p.id === room.hostId)?.name ?? "the host";
+  // Presence: devices check in every few seconds; 30 s of silence = "away" (closed tab, lost signal).
+  const away = (p: PublicRoom["players"][number]) => !p.bot && p.id !== room.you && !!now && now - (p.seenAt ?? 0) > 30_000;
+
   return (
     <div className="battle-lobby">
+      <ol className="battle-steps" style={{ gridColumn: "1 / -1" }} aria-label="How a battle works">
+        <li><b style={{ color: TEAMS.A.color }}>Round 1:</b> {TEAMS.A.name} collects shards; {TEAMS.B.name} sabotages them live.</li>
+        <li><b style={{ color: TEAMS.B.color }}>Round 2:</b> roles swap. {TEAMS.B.name} must beat {TEAMS.A.name}&apos;s average.</li>
+        <li><b>Win:</b> higher team average. A tie goes to a 90 s Sudden Surge.</li>
+      </ol>
       <div className="battle-teams">
         {(["A", "B"] as TeamId[]).map((t) => (
           <section key={t} className="battle-team" style={{ borderColor: TEAMS[t].color }} aria-labelledby={`team-${t}`}>
@@ -29,8 +39,10 @@ export function Lobby({ room, act }: { room: PublicRoom; act: (b: Record<string,
               {room.players.filter((p) => p.team === t).map((p) => (
                 <li key={p.id} className="battle-chip" style={{ ["--pc" as string]: p.color }}>
                   <i aria-hidden="true" />
+                  {!p.bot ? <b className="presence" data-away={away(p) || undefined} title={away(p) ? "Away" : "Connected"} aria-label={away(p) ? "away" : "connected"} /> : null}
                   <span>{p.name}{p.id === room.hostId ? " 👑" : ""}{p.id === room.you ? " (you)" : ""}</span>
                   {p.bot ? <small className="pill pill--soon">{p.bot}</small> : null}
+                  {!p.bot && p.id !== room.you ? <ReportButton code={room.code} playerId={p.id} name={p.name} onHidden={onHide} /> : null}
                   {host && p.id !== room.you ? <button type="button" className="chip-x" aria-label={`Remove ${p.name}`} disabled={busy} onClick={() => void run({ action: "remove", playerId: p.id })}>×</button> : null}
                 </li>
               ))}
@@ -50,7 +62,7 @@ export function Lobby({ room, act }: { room: PublicRoom; act: (b: Record<string,
           <div className="field">
             <span className="label">Round length</span>
             <div className="mode-tabs" role="group" aria-label="Round length">
-              {[180, 300].map((s) => <button key={s} type="button" className="btn btn--sm" aria-pressed={room.seconds === s} disabled={!host || busy} onClick={() => void run({ action: "settings", seconds: s })}>{s / 60} min</button>)}
+              {ROUND_SECONDS.map((s) => <button key={s} type="button" className="btn btn--sm" aria-pressed={room.seconds === s} disabled={!host || busy} onClick={() => void run({ action: "settings", seconds: s })}>{s === 90 ? "Quick 90 s" : roundLabel(s)}</button>)}
             </div>
           </div>
           <div className="field">
@@ -59,12 +71,12 @@ export function Lobby({ room, act }: { room: PublicRoom; act: (b: Record<string,
               {(["easy", "medium", "hard"] as BotLevel[]).map((l) => <button key={l} type="button" className="btn btn--sm" aria-pressed={room.botLevel === l} disabled={!host || busy} onClick={() => void run({ action: "settings", botLevel: l })}>{l[0].toUpperCase() + l.slice(1)}</button>)}
             </div>
           </div>
-          <p className="small muted">Two rounds of {room.seconds / 60} min: each team defends once. Higher average score per defender wins; a tie goes to a 90-second Sudden Surge.</p>
+          <p className="small muted">Two rounds of {roundLabel(room.seconds)}: each team defends once. Higher average score per defender wins; a tie goes to a 90-second Sudden Surge.</p>
           {host ? (
             <button type="button" className="btn btn--primary battle-start" disabled={busy} onClick={() => { track("battle_started", { format }); void run({ action: "start" }); }}>
               Start battle · {a && b ? format : "AI fills empty team"}
             </button>
-          ) : <p className="small" role="status">Waiting for the host to start… ({format})</p>}
+          ) : <p className="small" role="status"><span className="spinner" aria-hidden="true" /> Waiting for {hostName} to start · {format}. You&apos;re connected.</p>}
           <button type="button" className="btn btn--sm" style={{ marginTop: ".5rem" }} disabled={busy} onClick={() => void run({ action: "leave" })}>Leave room</button>
         </div>
         <InvitePanel code={room.code} />

@@ -107,6 +107,15 @@ template on X also helps it get noticed.
 
 ---
 
+## 2b. Claude and Gemini (same server, no extra code)
+- **Claude (claude.ai, desktop, mobile):** Settings → Connectors → **Add custom connector** → name `ONE MORE`, URL
+  `https://onemoregame.me/api/mcp` (no authentication). To list it publicly, submit it to Anthropic's connector
+  directory with the same review test cases as ChatGPT.
+- **Gemini CLI / Gemini Code Assist:** add to `~/.gemini/settings.json`:
+  `{ "mcpServers": { "onemore": { "httpUrl": "https://onemoregame.me/api/mcp" } } }`
+- **Any agent framework** that speaks MCP (Streamable HTTP) can use the same URL. The tools are read-only and cached,
+  so agent traffic can't change data or run up database costs.
+
 ## 3. Measure it
 Play links from assistants carry `?utm_source=ai-assistant&utm_medium=mcp`. Filter by that
 UTM in your analytics (or Vercel → Logs, filtered by `utm_source=ai-assistant`). Fair-use limit: 300 tool calls per hour per IP (`limits.mcpPerIp` in `src/lib/rate-limit.ts`).

@@ -62,3 +62,29 @@ npm run test:e2e                  # builds with build:local, then runs Playwrigh
 Extracting a zip never deletes old files, so files from another project can linger and override ONE MORE (a root `app/` folder wins over `src/app/`).
 `npm run dev` and `npm run build` refuse to run when that happens; `npm run verify:fix` moves the foreign files to `_foreign_backup/`.
 After intentionally adding or removing files under `src/`, `public/`, `tests/` or `e2e/`, run `npm run manifest`.
+
+## Android & iOS apps
+`mobile/` holds the Capacitor 8 apps (Android targetSdk 36, iOS 15+). They load the live site and add haptics,
+native sharing, the Android back button, a splash screen and an offline Practice mode. Build and store
+submission steps, data-safety answers and review notes: [docs/MOBILE-STORES.md](docs/MOBILE-STORES.md).
+
+## Chrome extension
+`mobile/extension/` + `npm run build:ext` (in `mobile/`) builds a toolbar popup that plays offline Practice and sends
+an optional daily reminder. Publishing steps: [docs/CHROME-EXTENSION.md](docs/CHROME-EXTENSION.md).
+
+## Daily jobs
+`/api/cron/push` (hourly, `.github/workflows/push.yml`) sends the opt-in daily reminder notifications. Generate VAPID
+keys once with `npx web-push generate-vapid-keys` and set `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` in Vercel.
+`/api/cron/winback` sends capped, opt-in win-back emails (3, 7 and 21 days after a player's last game). It is called
+daily by `.github/workflows/daily.yml` with `CRON_SECRET` (set it in Vercel and in GitHub → Actions secrets).
+
+## Business documents
+[HOOKED-PLAYBOOK](docs/HOOKED-PLAYBOOK.md) (utility, ICP, market signal, Hook Model, 8-week proof plan) · [INVESTOR-FAQ](docs/INVESTOR-FAQ.md) (moats, aha moment, retention, unit economics) ·
+[LEGAL-AND-OWNERSHIP](docs/LEGAL-AND-OWNERSHIP.md) · [RESILIENCE](docs/RESILIENCE.md) (failure points, fallbacks,
+security, cost control) · [MONETIZATION](docs/MONETIZATION.md) · [SEO-ADSENSE-PERFORMANCE](docs/SEO-ADSENSE-PERFORMANCE.md).
+
+## Shop (optional cosmetics)
+`/shop` sells cosmetic skins, trails, Replay Studio and the Founder Pack. The apps use Google Play / App Store
+billing through RevenueCat; the website uses Razorpay. Ownership is verified on the server and stored on the
+player. Code: `src/lib/shop/`, `src/components/shop/`, `src/game/cosmetics.ts`. Setup, payouts and review rules:
+[docs/MONETIZATION.md](docs/MONETIZATION.md).

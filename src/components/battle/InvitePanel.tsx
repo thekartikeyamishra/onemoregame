@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { TEAMS, type TeamId } from "@/game/battle/config";
 import { track } from "@/lib/analytics";
+import { shareContent } from "@/lib/native";
 
 /** Frictionless invites: one link per team, native share sheet, WhatsApp, copy. Links carry only the room code. */
 export function InvitePanel({ code }: { code: string }) {
@@ -12,10 +13,9 @@ export function InvitePanel({ code }: { code: string }) {
   async function share(team?: TeamId) {
     const url = link(team);
     track("battle_invite_shared", { team: team ?? "any" });
-    if (navigator.share) {
-      try { await navigator.share({ title: "ONE MORE Battle", text: text(team), url }); return; } catch { /* cancelled */ }
-    }
-    try { await navigator.clipboard.writeText(`${text(team)} ${url}`); setStatus("Invite copied."); } catch { setStatus(url); }
+    const how = await shareContent({ title: "ONE MORE Battle", text: text(team), url });
+    if (how === "copied") setStatus("Invite copied.");
+    else if (how === "failed") setStatus(url);
   }
   return (
     <div className="form-card battle-invite">

@@ -1,0 +1,19 @@
+name: Hourly reminders
+# Sends the opt-in "today's arena is live / keep your streak" Web Push reminders for players whose chosen hour is now.
+# Needs the CRON_SECRET repository secret (same value as in Vercel). Free on GitHub; idempotent if retried.
+on:
+  schedule:
+    - cron: "2 * * * *"
+  workflow_dispatch:
+jobs:
+  push:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Call reminder job
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then echo "CRON_SECRET not set; skipping"; exit 0; fi
+          curl -fsS --retry 2 --retry-delay 15 --max-time 90 -X POST \
+            -H "Authorization: Bearer $CRON_SECRET" https://onemoregame.me/api/cron/push

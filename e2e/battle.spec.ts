@@ -28,7 +28,8 @@ test("battle: create, invite, AI fill, defend, attack, results", async ({ page, 
   await friend.getByLabel("Gamer tag").fill("Friend Two");
   await friend.getByRole("button", { name: "Join battle" }).click();
   await expect(friend.getByText("Friend Two (you)")).toBeVisible();
-  await expect(page.getByText("Friend Two")).toBeVisible({ timeout: 6000 });
+  await expect(page.getByText("Friend Two", { exact: true })).toBeVisible({ timeout: 6000 });
+  await expect(page.getByText(/Friend Two joined/)).toBeVisible();
 
   // Sound toggle and help are in the room too.
   await expect(page.getByRole("button", { name: /Sound on/ })).toBeVisible();
@@ -69,4 +70,26 @@ test("battle: unknown room and bad codes are handled", async ({ page, request })
   expect(r.status()).toBe(404);
   const bad = await request.post("/api/battle", { data: { name: "<script>", seconds: 180 } });
   expect(bad.status()).toBe(400);
+});
+
+test("quick match vs AI goes live in one tap and fits a small phone without overlap", async ({ browser }) => {
+  test.setTimeout(60_000);
+  for (const viewport of [{ width: 360, height: 640 }, { width: 740, height: 360 }]) {
+    const ctx = await browser.newContext({ viewport, hasTouch: true, isMobile: true });
+    const page = await ctx.newPage();
+    await page.goto("/battle");
+    await page.getByRole("button", { name: /Quick match vs AI/ }).click();
+    await expect(page.getByText("You DEFEND")).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator(".battle-live .battle-canvas")).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator(".live-role")).toHaveText("DEFEND");
+    // Full-screen surface: no page scroll, the arena has real size, and every control is on screen.
+    const fit = await page.evaluate(() => {
+      const vw = innerWidth, vh = innerHeight, inside = (r: DOMRect) => r.left >= -1 && r.right <= vw + 1 && r.top >= -1 && r.bottom <= vh + 1;
+      const canvas = document.querySelector(".battle-live .battle-canvas")!.getBoundingClientRect();
+      const buttons = [...document.querySelectorAll(".battle-live .ability")].map((b) => b.getBoundingClientRect());
+      return { scroll: document.documentElement.scrollWidth <= vw, canvas: canvas.width > 150 && canvas.height > 150, buttons: buttons.length >= 8 && buttons.every(inside) };
+    });
+    expect(fit).toEqual({ scroll: true, canvas: true, buttons: true });
+    await ctx.close();
+  }
 });

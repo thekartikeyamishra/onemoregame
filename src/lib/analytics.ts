@@ -20,7 +20,15 @@ export type FunnelEvent =
   | "battle_joined"
   | "battle_started"
   | "battle_finished"
-  | "battle_invite_shared";
+  | "battle_invite_shared"
+  | "shop_viewed"
+  | "shop_buy_started"
+  | "shop_purchased"
+  | "replay_opened"
+  | "replay_saved"
+  | "moment_offer_shown"
+  | "push_offer_shown"
+  | "push_enabled";
 
 declare global {
   interface Window { dataLayer?: unknown[] }

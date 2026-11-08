@@ -23,17 +23,20 @@ const adHosts = adsEnabled
   ? " https://pagead2.googlesyndication.com https://*.googlesyndication.com https://*.doubleclick.net https://*.google.com https://*.gstatic.com https://*.adtrafficquality.google https://*.googleadservices.com https://*.googletagservices.com"
   : "";
 
+// Razorpay Checkout (website purchases only; loaded on demand when a signed-in player taps Buy).
+const pay = " https://checkout.razorpay.com https://api.razorpay.com";
+
 // 'unsafe-inline' for scripts is needed by Next.js inline bootstrap/JSON-LD without per-request nonces
 // (nonces would force every page to render dynamically). All other directives are locked down.
 const csp = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}${adHosts}`,
+  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}${adHosts} https://checkout.razorpay.com`,
   "style-src 'self' 'unsafe-inline'",
-  `img-src 'self' data: blob:${adHosts}`,
+  `img-src 'self' data: blob:${adHosts} https://*.razorpay.com`,
   "font-src 'self' data:",
-  `connect-src 'self'${adHosts}`,
-  `frame-src 'self'${adHosts}`,
-  "media-src 'self'",
+  `connect-src 'self'${adHosts}${pay} https://lumberjack.razorpay.com`,
+  `frame-src 'self'${adHosts}${pay}`,
+  "media-src 'self' blob:",
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",
@@ -47,8 +50,9 @@ const security = [
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "X-Frame-Options", value: "DENY" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=(), usb=()" },
-  { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
+  { key: "Permissions-Policy", value: 'camera=(), microphone=(), geolocation=(), payment=(self "https://api.razorpay.com" "https://checkout.razorpay.com"), usb=()' },
+  // allow-popups: Razorpay opens bank/3-D Secure pages in a popup and reports back to the opener.
+  { key: "Cross-Origin-Opener-Policy", value: "same-origin-allow-popups" },
 ];
 
 // Token-bearing pages: never cache, never leak the URL via Referer, never index.
@@ -79,6 +83,7 @@ const nextConfig: NextConfig = {
       { source: "/c/:id", headers: [{ key: "Cache-Control", value: "private, no-store" }, { key: "X-Robots-Tag", value: "noindex" }] },
       { source: "/b/:code", headers: [{ key: "Cache-Control", value: "private, no-store" }, { key: "X-Robots-Tag", value: "noindex" }, { key: "Referrer-Policy", value: "no-referrer" }] },
       { source: "/api/:path*", headers: [{ key: "X-Robots-Tag", value: "noindex" }] },
+      { source: "/sw.js", headers: [{ key: "Cache-Control", value: "no-cache, max-age=0" }, { key: "Content-Type", value: "application/javascript; charset=utf-8" }] },
     ];
   },
 };

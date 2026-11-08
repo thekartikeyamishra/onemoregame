@@ -60,6 +60,17 @@ test("playtester plays a full verified Daily Arena run and appears on the leader
   await expect(page.getByText("Score verified by replay ✓")).toBeVisible({ timeout: 90_000 });
   await expect(page.locator(".big-score")).toBeVisible();
 
+  // Replay Studio: watching is free; saving the video is the optional purchase.
+  const replay = page.getByRole("button", { name: /Watch (the )?replay/ }).first();
+  if (await replay.isVisible()) {
+    await replay.click();
+    const dlg = page.getByRole("dialog");
+    await expect(dlg.locator("canvas.replay-canvas")).toBeVisible();
+    await expect(dlg.getByRole("button", { name: /Unlock Replay Studio/ })).toBeVisible();
+    await dlg.getByRole("button", { name: "Close replay" }).click();
+    await expect(dlg).toBeHidden();
+  }
+
   await page.getByRole("button", { name: "Modes" }).click();
   await expect(page.locator(".lb")).toContainText("Tester_1");
 

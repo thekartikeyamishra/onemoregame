@@ -1,5 +1,5 @@
 import { json, readJson } from "@/lib/api";
-import { attack, battleFeedback, joinRoom, lobbyAction, tick } from "@/lib/battle-service";
+import { attack, battleFeedback, joinRoom, lobbyAction, reportPlayer, tick } from "@/lib/battle-service";
 import { limits } from "@/lib/rate-limit";
 import { allow, logError, serverCtx } from "@/lib/server";
 
@@ -40,6 +40,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ code: s
       case "attack":
         if (tooFast(`a:${token}`, Date.now(), 250)) return json({ error: "Too fast." }, 429);
         r = await attack(ctx, code, token, { a: b.a, t: b.t, x: b.x, y: b.y });
+        break;
+      case "report":
+        if (!(await allow(ctx, limits.battleReportPerIp, req.headers))) return json({ error: "Too many reports. Try again later." }, 429);
+        r = await reportPlayer(ctx, code, token, { playerId: b.playerId, reason: b.reason });
         break;
       case "feedback":
         r = await battleFeedback(ctx, code, token, { rating: b.rating, note: b.note });

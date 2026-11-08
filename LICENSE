@@ -1,0 +1,10 @@
+Copyright (c) 2026 Kartikeya Mishra. All rights reserved.
+
+ONE MORE (the game, its source code, engine, artwork, sounds, text, brand names and logos) is proprietary
+software owned by Kartikeya Mishra. No licence is granted to copy, modify, distribute, sublicense or create
+derivative works of any part of it, in whole or in part, without prior written permission from the owner.
+
+Third-party open-source packages used by this project remain under their own licences (see each package in
+node_modules and `npm ls`); those licences apply only to those packages.
+
+Contact: support@onemoregame.me

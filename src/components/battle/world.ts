@@ -1,10 +1,15 @@
 "use client";
 
 import { TPS } from "@/game/engine";
+import { ATTACK_ABILITIES, ATTACK_LEAD } from "@/game/battle/config";
 import { DefenderRun, acceptAttacks, allAttackPlays, effectsFor, specOf, type AttackPlay, type Effect, type Lane, type RoundSpec } from "@/game/battle/sim";
 import type { LaneDelta, PublicRound } from "@/lib/battle-types";
 
 interface ClientLane extends Lane { plays: AttackPlay[]; lastTick: number }
+export interface FeedItem { id: string; text: string; tone: "attack" | "ko" | "good" | "info"; at: number }
+
+/** Remote players are shown slightly in the past so their movement plays back smoothly between syncs. */
+const DELAY_START = 100, DELAY_MIN = 70, DELAY_MAX = 330;
 
 /**
  * The client's copy of a round: every defender re-simulated locally from the uploaded inputs (no positions are
@@ -21,6 +26,14 @@ export class BattleWorld {
   private aegisSent = new Map<string, number>();
   private uploaded = { i: 0, s: 0, to: -1 };
   lost = false;
+  /** Display names by player id (set by the room view). */
+  names: Record<string, string> = {};
+  /** Latest events for the on-screen feed (newest last). */
+  feed: FeedItem[] = [];
+  private delay = new Map<string, number>();
+  private lowWater = new Map<string, number>();
+  private seen = new Map<string, { hits: number; level: number; combo: number }>();
+  private announced = new Set<string>();
 
   constructor(readonly round: PublicRound, readonly me: string) {
     this.spec = specOf(round);
@@ -105,12 +118,29 @@ export class BattleWorld {
     for (const [id, run] of this.runs) {
       if (id === this.me && this.iDrive) continue; // driven by stepLocal()
       const lane = this.lanes[id];
-      const human = run.spec.bot === null;
-      const limit = !human || lane.takeoverAt !== null ? target : Math.min(target, lane.lastTick + 1);
+      const human = run.spec.bot === null && lane.takeoverAt === null;
+      let limit = target, cap = maxSteps;
+      if (human) {
+        // Jitter buffer: play other humans `delay` ticks behind live. If their inputs run out, grow the delay
+        // (no freezing and jumping); while plenty is buffered, shrink it slowly back toward real time.
+        const known = lane.lastTick + 1;
+        let d = this.delay.get(id) ?? DELAY_START;
+        const buf = known - (target - d); // ticks of their inputs buffered ahead of the playhead
+        // Low-water mark of the buffer, recovering slowly: shrink the delay only after a long stretch of surplus.
+        let low = Math.min(buf, (this.lowWater.get(id) ?? buf) + 0.02);
+        if (buf < 0) { d = Math.min(DELAY_MAX, d - buf + 24); low = 24; } // ran dry: re-buffer with a margin
+        else if (low > 45) d = Math.max(DELAY_MIN, d - 0.25);
+        this.lowWater.set(id, low);
+        this.delay.set(id, d);
+        limit = Math.min(known, Math.round(target - d), this.total);
+        // Catch up gently (max 3 ticks per frame) unless far behind (tab was hidden): then jump.
+        cap = limit - run.tick > 90 ? maxSteps : 3;
+      }
       let n = 0;
-      while (run.tick < limit && !run.state.over && n++ < maxSteps) run.step();
+      while (run.tick < limit && !run.state.over && n++ < cap) run.step();
     }
     this.shareAegis();
+    this.scanFeed(nowTick);
   }
 
   /** Steps the local defender to `nowTick`, recording input changes (and ability presses) into our lane. */
@@ -132,6 +162,7 @@ export class BattleWorld {
     }
     lane.lastTick = run.tick - 1;
     this.shareAegis();
+    if (n) this.scanFeed(nowTick);
     return { usedAbility: used, stepped: n };
   }
 
@@ -178,6 +209,39 @@ export class BattleWorld {
     lane.plays.push(p);
     this.plays = allAttackPlays(this.spec, Object.values(this.lanes).flatMap((l) => l.plays));
     for (const [id, run] of this.runs) if (!run.addEffects(effectsFor(id, this.plays))) this.rebuild(id);
+  }
+
+  private name(id: string) { return id === "arena" ? "The arena" : id === this.me ? "You" : (this.names[id] ?? "Someone"); }
+  private push(key: string, text: string, tone: FeedItem["tone"], at: number) {
+    if (this.announced.has(key)) return;
+    this.announced.add(key);
+    this.feed.push({ id: key, text, tone, at });
+    if (this.feed.length > 6) this.feed.splice(0, this.feed.length - 6);
+  }
+
+  /** Turns what just happened (launches, KOs, combos, level-ups) into short feed lines. */
+  private scanFeed(nowTick: number) {
+    const now = typeof performance !== "undefined" ? performance.now() : 0;
+    for (const p of this.plays) {
+      if (p.at > nowTick || p.at < nowTick - ATTACK_LEAD) continue;
+      const a = ATTACK_ABILITIES[p.a];
+      if (!a) continue;
+      const target = p.t === "*" ? "the whole team" : p.t === this.me ? "YOU" : this.name(p.t);
+      this.push(`p:${p.by}:${p.at}:${p.a}`, `${a.icon} ${this.name(p.by)} → ${a.name} on ${target}`, "attack", now);
+    }
+    for (const [id, run] of this.runs) {
+      const st = run.state, prev = this.seen.get(id) ?? { hits: 0, level: 1, combo: 0 };
+      if (st.hits > prev.hits) this.push(`k:${id}:${st.hits}`, `💥 ${this.name(id)} got knocked out`, "ko", now);
+      if (run.level > prev.level) this.push(`l:${id}:${run.level}`, `⬆ ${this.name(id)} reached level ${run.level}`, "good", now);
+      if (st.combo >= 9 && prev.combo < 9) this.push(`c:${id}:${run.tick}`, `🔥 ${this.name(id)} hit MAX combo ×9`, "good", now);
+      this.seen.set(id, { hits: st.hits, level: run.level, combo: st.combo });
+    }
+  }
+
+  /** Feed lines from the last few seconds. */
+  recentFeed(maxAgeMs = 4500): FeedItem[] {
+    const now = typeof performance !== "undefined" ? performance.now() : 0;
+    return this.feed.filter((f) => now - f.at < maxAgeMs).slice(-4);
   }
 
   /** Upcoming attacks on a defender (for warnings). */

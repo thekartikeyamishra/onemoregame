@@ -29,7 +29,7 @@ export const ROOM_TTL_MS = 6 * 60 * 60 * 1000;
 const FINAL_GRACE_MS = 4000;
 const MIN_POST_GAP_MS = 500;
 
-export interface BattlePlayer { id: string; name: string; color: string; team: TeamId; bot: BotLevel | null; tokenHash: string | null; joinedAt: number }
+export interface BattlePlayer { id: string; name: string; color: string; team: TeamId; bot: BotLevel | null; tokenHash: string | null; joinedAt: number; seenAt?: number }
 export interface RoundRecord {
   n: number; seconds: number; seed: number; defenders: TeamId[]; attackers: TeamId | null;
   roster: Array<{ id: string; team: TeamId; bot: BotLevel | null }>;
@@ -64,6 +64,7 @@ interface LaneDoc {
 }
 interface SegDoc { [key: string]: unknown; i: number[]; s: number[]; expiresAt: Date }
 const HEAD_MAX = 900;
+const PRESENCE_WRITE_MS = 12_000;
 const segId = (lane: string, k: number) => `${lane}_s${k}`;
 
 export type BattleError = { error: string; status: number };
@@ -75,7 +76,7 @@ const err = (error: string, status = 400): BattleError => ({ error, status });
 // always sees their own changes immediately; other players' changes appear within a second.
 const roomCaches = new WeakMap<Store, TtlCache<BattleRoom>>();
 const laneCaches = new WeakMap<Store, TtlCache<LaneDoc | null>>();
-function roomCache(store: Store) { let c = roomCaches.get(store); if (!c) roomCaches.set(store, (c = new TtlCache<BattleRoom>(1000, 500))); return c; }
+function roomCache(store: Store) { let c = roomCaches.get(store); if (!c) roomCaches.set(store, (c = new TtlCache<BattleRoom>(600, 500))); return c; }
 function laneCache(store: Store) { let c = laneCaches.get(store); if (!c) laneCaches.set(store, (c = new TtlCache<LaneDoc | null>(700, 3000))); return c; }
 async function getRoom(store: Store, code: string): Promise<BattleRoom | null> {
   const hit = roomCache(store).get(code);
@@ -138,7 +139,7 @@ export function publicRoom(room: BattleRoom, you: string | null): PublicRoom {
   return {
     code: room.code, hostId: room.hostId, seconds: room.seconds, botLevel: room.botLevel, status: room.status, match: room.match,
     round: room.round, roundStartAt: room.roundStartAt, winner: room.winner, version: room.version,
-    players: room.players.map(({ id, name, color, team, bot }) => ({ id, name, color, team, bot })),
+    players: room.players.map(({ id, name, color, team, bot, seenAt }) => ({ id, name, color, team, bot, ...(bot ? {} : { seenAt: seenAt ?? 0 }) })),
     rounds: room.rounds.map((r) => ({ ...r, finishedAt: r.outcome ? r.finishedAt : null })),
     you,
   };
@@ -173,7 +174,7 @@ async function mutate(ctx: Ctx, code: string, fn: (room: BattleRoom, now: number
 export async function createRoom(ctx: Ctx, input: { name: unknown; seconds: unknown; botLevel: unknown }) {
   const name = cleanDisplayName(input.name);
   if (!name) return err("Use a gamer tag of 3–16 letters, numbers, spaces, dots, dashes or underscores.");
-  const seconds = (ROUND_SECONDS as readonly number[]).includes(Number(input.seconds)) ? (Number(input.seconds) as RoundSeconds) : 180;
+  const seconds = (ROUND_SECONDS as readonly number[]).includes(Number(input.seconds)) ? (Number(input.seconds) as RoundSeconds) : 90;
   const botLevel: BotLevel = input.botLevel === "easy" || input.botLevel === "hard" ? input.botLevel : "medium";
   const now = ctx.now ?? Date.now();
   const token = randomToken(24), id = randomToken(6);
@@ -181,7 +182,7 @@ export async function createRoom(ctx: Ctx, input: { name: unknown; seconds: unkn
     const code = roomCode();
     const room: BattleRoom = {
       code, createdAt: now, expiresAt: new Date(now + ROOM_TTL_MS), hostId: id, seconds, botLevel, status: "lobby",
-      players: [{ id, name, color: PLAYER_COLORS[0], team: "A", bot: null, tokenHash: tokenHash(ctx.secret, code, token), joinedAt: now }],
+      players: [{ id, name, color: PLAYER_COLORS[0], team: "A", bot: null, tokenHash: tokenHash(ctx.secret, code, token), joinedAt: now, seenAt: now }],
       match: 1, round: 0, roundStartAt: null, rounds: [], finalizing: null, winner: null, version: 1,
     };
     try {
@@ -219,7 +220,7 @@ export async function joinRoom(ctx: Ctx, rawCode: unknown, input: { name: unknow
       else team = team === "A" ? "B" : "A";
     }
     if (teamSize(room, team) >= MAX_TEAM) return err("Both teams are full.", 409);
-    room.players.push({ id, name: uniqueName(room, name), color: freeColor(room), team, bot: null, tokenHash: tokenHash(ctx.secret, code, token), joinedAt: now });
+    room.players.push({ id, name: uniqueName(room, name), color: freeColor(room), team, bot: null, tokenHash: tokenHash(ctx.secret, code, token), joinedAt: now, seenAt: now });
   });
   if (isErr(r)) return r;
   return { code, token, playerId: id, room: publicRoom(r, id) };
@@ -281,7 +282,7 @@ export async function lobbyAction(ctx: Ctx, rawCode: unknown, token: unknown, a:
         if (!host) return err("Only the host can change settings.", 403);
         if (!inLobby) return err("The battle has started.", 409);
         if (a.seconds !== undefined) {
-          if (!(ROUND_SECONDS as readonly number[]).includes(Number(a.seconds))) return err("Rounds are 3 or 5 minutes.");
+          if (!(ROUND_SECONDS as readonly number[]).includes(Number(a.seconds))) return err("Rounds are 90 seconds, 3 or 5 minutes.");
           room.seconds = Number(a.seconds) as RoundSeconds;
         }
         if (a.botLevel === "easy" || a.botLevel === "medium" || a.botLevel === "hard") {
@@ -387,6 +388,11 @@ export async function tick(ctx: Ctx, rawCode: unknown, token: unknown, body: Tic
   let { room } = who;
   const me = who.me;
   const now = ctx.now ?? Date.now();
+  // Presence: a cheap heartbeat (at most one write per player every 12 s) so everyone sees who's really here.
+  if (room.status !== "playing" && now - (me.seenAt ?? me.joinedAt) > PRESENCE_WRITE_MS) {
+    const r = await mutate(ctx, code, (rm) => { const p = rm.players.find((x) => x.id === me.id); if (p) p.seenAt = now; });
+    if (!isErr(r)) room = r;
+  }
   let upload: { ok: boolean; reason?: string } | undefined;
 
   const rec = currentRound(room);
@@ -574,6 +580,19 @@ export async function attack(ctx: Ctx, rawCode: unknown, token: unknown, body: {
     laneCache(ctx.store).set(id, lane);
     return { ok: true, play, landsAt: play.at + ATTACK_LEAD };
   });
+}
+
+/** Report a player (name or behaviour). Stored for moderation; reviewed within 24 h (see Terms). */
+export async function reportPlayer(ctx: Ctx, rawCode: unknown, token: unknown, body: { playerId?: unknown; reason?: unknown }) {
+  const code = normalizeCode(rawCode);
+  if (!code) return err("Room not found.", 404);
+  const who = await auth(ctx, code, token);
+  if (isErr(who)) return who;
+  const target = who.room.players.find((p) => p.id === body.playerId);
+  if (!target || target.bot || target.id === who.me.id) return err("You can't report that player.");
+  const reason = ["name", "behaviour", "cheating", "other"].includes(String(body.reason)) ? String(body.reason) : "other";
+  await ctx.store.add(C.feedback, { kind: "report", room: code, targetId: target.id, targetName: target.name, reporterId: who.me.id, reason, createdAt: ctx.now ?? Date.now(), status: "open" });
+  return { ok: true };
 }
 
 export async function battleFeedback(ctx: Ctx, rawCode: unknown, token: unknown, body: { rating?: unknown; note?: unknown }) {

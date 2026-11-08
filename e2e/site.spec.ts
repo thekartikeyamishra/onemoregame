@@ -26,6 +26,14 @@ async function requestAccess(page: Page, email: string, url = "/early-access") {
   await expect(page.getByRole("status")).toContainText("Check your inbox");
 }
 
+test("service worker for reminders is served fresh and as JavaScript", async ({ request }) => {
+  const r = await request.get("/sw.js");
+  expect(r.status()).toBe(200);
+  expect(r.headers()["content-type"]).toContain("javascript");
+  expect(r.headers()["cache-control"]).toContain("no-cache");
+  expect(await r.text()).toContain("notificationclick");
+});
+
 test("homepage explains the product honestly and has correct metadata", async ({ page }) => {
   await page.goto("/");
   await expect(page.locator("h1")).toHaveCount(1);
@@ -231,4 +239,18 @@ test("MCP card resource is served over HTTP; OpenAI challenge is hidden until co
   expect(body.result.contents[0].mimeType).toBe("text/html;profile=mcp-app");
   expect(body.result.contents[0].text).toContain("Play ONE MORE");
   expect((await request.get("/.well-known/openai-apps-challenge")).status()).toBe(404);
+});
+
+test("account deletion is reachable without signing in, and the manifest is installable", async ({ page, request }) => {
+  await page.goto("/account");
+  await expect(page.getByRole("heading", { name: "Delete an account by email" })).toBeVisible();
+  await page.getByLabel("Email address").fill("nobody-here@example.com");
+  await page.getByRole("button", { name: "Email me a deletion link" }).click();
+  await expect(page.getByText(/If that email has an account/)).toBeVisible();
+  await page.goto("/account/delete?token=bad.token");
+  await expect(page.getByText(/invalid, already used or expired/)).toBeVisible();
+  const m = await (await request.get("/manifest.webmanifest")).json();
+  expect(m.display).toBe("standalone");
+  expect(m.icons.some((i: { purpose?: string }) => i.purpose === "maskable")).toBe(true);
+  expect((await request.get("/brand/maskable-512.png")).headers()["content-type"]).toContain("image/png");
 });

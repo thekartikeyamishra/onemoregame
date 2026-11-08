@@ -6,9 +6,16 @@ import { CommunityPrompt, markCommunityShown, shouldShowCommunity } from "@/comp
 import { ShareResult, shareText } from "@/components/ShareResult";
 import { WaitlistForm } from "@/components/WaitlistForm";
 import { Sfx } from "./audio";
+import { hapticsEnabled, setHaptics } from "@/lib/native";
 import { ENGINE_VERSION, type InputLog, type Rules, type RunResult, type TwistId } from "./engine";
 import dynamic from "next/dynamic";
 import type { RunEnd } from "./GameCanvas";
+import { DEFAULT_LOOK, SKINS, isSkinId, type Look } from "./cosmetics";
+import { effectiveLook, mergedOwned } from "@/components/shop/checkout";
+import { currentSubscription, disablePush, enablePush, localStreak, markPushAsked, pushSupported, shouldOfferPush, touchPush } from "@/lib/push-client";
+
+// Replay Studio is only loaded when a player opens a replay.
+const ReplayStudio = dynamic(() => import("@/components/shop/ReplayStudio").then((m) => m.ReplayStudio), { ssr: false });
 
 // The renderer is only needed once a run starts: load it as its own chunk (smaller initial JS on /play).
 const GameCanvas = dynamic(() => import("./GameCanvas").then((m) => m.GameCanvas), {
@@ -41,6 +48,9 @@ interface Props {
   /** Levels mode: the fixed level table and the player's saved progress (guests: level 1 only). */
   levels?: LevelSummary[];
   levelProgress?: LevelProgress | null;
+  /** Signed-in player's equipped cosmetics and owned items (guests: read from this device). */
+  look?: Look | null;
+  owned?: string[];
 }
 
 async function post<T>(url: string, body: unknown): Promise<{ ok: true; data: T } | { ok: false; error: string }> {
@@ -60,8 +70,14 @@ function writePref(key: string, v: boolean) {
   try { localStorage.setItem(key, v ? "1" : "0"); } catch { /* storage blocked */ }
 }
 
-export function PlayClient({ player, challenge = null, dailyTwist = null, levels = [], levelProgress = null }: Props) {
+export function PlayClient({ player, challenge = null, dailyTwist = null, levels = [], levelProgress = null, look: serverLook = null, owned = [] }: Props) {
   const sfx = useMemo(() => new Sfx(), []);
+  const [look, setLook] = useState<Look>(serverLook ?? DEFAULT_LOOK);
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setLook(effectiveLook(!!player, serverLook, mergedOwned(owned))));
+    return () => cancelAnimationFrame(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [phase, setPhase] = useState<Phase>({ kind: "menu" });
   const [mode, setMode] = useState<Mode>(challenge ? "challenge" : player ? "quick" : "daily");
   const [error, setError] = useState<string | null>(null);
@@ -125,7 +141,7 @@ export function PlayClient({ player, challenge = null, dailyTwist = null, levels
     return (
       <GameCanvas
         key={phase.key} seed={phase.run.seed} twist={phase.run.twist.id} rules={phase.run.rules} level={phase.run.level} ghost={phase.run.ghost} ghostName={phase.run.ghostName ?? challenge?.by ?? null}
-        sfx={sfx} reducedEffects={reduced}
+        look={look} sfx={sfx} reducedEffects={reduced}
         onEnd={(e) => void onEnd(phase.run, e)} onQuit={() => setPhase({ kind: "menu" })}
       />
     );
@@ -134,7 +150,7 @@ export function PlayClient({ player, challenge = null, dailyTwist = null, levels
   if (phase.kind === "result") {
     const lr = phase.saved?.level;
     const next = lr?.passed && lr.n < levels.length && player ? lr.n + 1 : null;
-    return <Result phase={phase} best={best} streak={streak} isGuest={!player} challenge={challenge} runsThisVisit={runsThisVisit} onAgain={() => void start(phase.run.mode, phase.run.level?.n)} onNext={next ? () => void start("level", next) : null} onMenu={() => setPhase({ kind: "menu" })} />;
+    return <Result look={look} phase={phase} best={best} streak={streak} isGuest={!player} challenge={challenge} runsThisVisit={runsThisVisit} onAgain={() => void start(phase.run.mode, phase.run.level?.n)} onNext={next ? () => void start("level", next) : null} onMenu={() => setPhase({ kind: "menu" })} />;
   }
 
   return (
@@ -190,16 +206,19 @@ export function PlayClient({ player, challenge = null, dailyTwist = null, levels
           {mode === "level" && player ? <div className="stat"><b>★ {levels.reduce((n, l) => n + starCount(l.stars, progress.best[l.n] ?? 0), 0)}/{levels.length * 3}</b><span>Stars</span></div> : <div className="stat"><b>60s</b><span>Per run</span></div>}
         </div>
         <p className="small"><a href="/battle">⚔ New: Battle your friends (up to 5v5, or vs AI) →</a></p>
+        <p className="small"><a href="/shop">🎨 Skins, trails &amp; the Founder Pack →</a></p>
         <details>
           <summary className="small" style={{ cursor: "pointer" }}>Controls &amp; settings</summary>
           <ul className="small muted" style={{ marginTop: ".75rem" }}>
-            <li>Steer: <span className="kbd">WASD</span> / arrows, move the mouse, or drag on touch.</li>
+            <li>Steer: <span className="kbd">WASD</span> / arrows, move the mouse, or drag a thumb anywhere on touch screens (a joystick appears where you touch). Second finger or double-tap to dash.</li>
             <li>Dash (brief invulnerability, 2 s cooldown): <span className="kbd">Space</span>, click, double-tap or the Dash button.</li>
             <li>Power-ups (hexagons): <b>◯ Shield</b> blocks one hit · <b>◷ Slow-mo</b> halves hazard speed · <b>U Magnet</b> pulls nearby shards · <b>×2 Double</b> doubles points.</li>
             <li>Pause: <span className="kbd">Esc</span> / <span className="kbd">P</span>. One more: <span className="kbd">R</span> on the results screen.</li>
           </ul>
           <label className="check"><input type="checkbox" checked={sound} onChange={(e) => { setSound(e.target.checked); writePref("om_sound", e.target.checked); }} /><span>Sound effects</span></label>
           <label className="check"><input type="checkbox" checked={reduced} onChange={(e) => { setReduced(e.target.checked); writePref("om_reduced", e.target.checked); }} /><span>Reduce effects (no shake or glow, fewer particles)</span></label>
+          <HapticsToggle />
+          <ReminderToggle />
         </details>
       </div>
       {!challenge ? (
@@ -218,8 +237,8 @@ const UNRANKED: Record<string, string> = {
   "leaderboard-banned": "leaderboard access removed under the Fair Play rules",
 };
 
-function Result({ phase, best, streak, isGuest, challenge, runsThisVisit, onAgain, onNext, onMenu }: {
-  phase: Extract<Phase, { kind: "result" }>; best: number; streak: number; isGuest: boolean; challenge: Props["challenge"]; runsThisVisit: number; onAgain: () => void; onNext: (() => void) | null; onMenu: () => void;
+function Result({ look, phase, best, streak, isGuest, challenge, runsThisVisit, onAgain, onNext, onMenu }: {
+  look: Look; phase: Extract<Phase, { kind: "result" }>; best: number; streak: number; isGuest: boolean; challenge: Props["challenge"]; runsThisVisit: number; onAgain: () => void; onNext: (() => void) | null; onMenu: () => void;
 }) {
   const { result, saved, saveError, run } = phase;
   const lv = run.level;
@@ -235,9 +254,27 @@ function Result({ phase, best, streak, isGuest, challenge, runsThisVisit, onAgai
   const highMoment = beat === true || !!saved?.newBest || (shownStreak ?? 0) >= 2 || lvStars === 3;
   // Decide once per result screen whether to show the community prompt (reads browser storage, so after mount).
   const [community, setCommunity] = useState<null | "best" | "beat" | "streak" | "regular">(null);
+  const [moment, setMoment] = useState(false);
+  const [replayOpen, setReplayOpen] = useState(false);
+  const canReplay = !!saved && !saveError && result.score > 0 && phase.inputs.length > 0;
+  const replayLabel = lv ? `Level ${lv.n} · ${"★".repeat(lvStars) || "run"}` : beat === true ? "Challenge beaten" : saved?.newBest ? "New personal best" : run.mode === "daily" ? `Daily Arena · ${run.day}` : "Quick Play";
+  const replayRun = useMemo(() => ({ seed: run.seed, twist: run.twist.id, rules: run.rules, log: phase.inputs, score: result.score, label: replayLabel }), [run, phase.inputs, result.score, replayLabel]);
+  const [pushOffer, setPushOffer] = useState<null | "ask" | "on" | "denied">(null);
+  const pushStreak = run.mode === "daily" && run.day ? (shownStreak ?? 0) : 0;
+  useEffect(() => {
+    if (!saved || run.mode !== "daily" || !run.day) return;
+    // Remember that today is played (guests: streak counted on this device) and skip today's reminder.
+    const s = isGuest ? localStreak(run.day) : shownStreak ?? 0;
+    void touchPush(run.day, s);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [saved]);
   useEffect(() => {
     if (!saved) return;
     const id = requestAnimationFrame(() => {
+      // At most one prompt per result screen, and the highlight offer at most once per visit, only on proud moments.
+      if (highMoment && canReplay && takeMoment()) { setMoment(true); track("moment_offer_shown", {}); return; }
+      // Hooked: ask for the external trigger right after the reward, when the player wants tomorrow's run.
+      if (run.mode === "daily" && run.day && pushSupported() && shouldOfferPush()) { markPushAsked(); setPushOffer("ask"); track("push_offer_shown", {}); return; }
       if (shouldShowCommunity({ runsThisVisit, highMoment })) {
         markCommunityShown();
         setCommunity(beat === true ? "beat" : saved.newBest ? "best" : (shownStreak ?? 0) >= 2 ? "streak" : "regular");
@@ -279,7 +316,16 @@ function Result({ phase, best, streak, isGuest, challenge, runsThisVisit, onAgai
           {onNext ? <button type="button" className="btn btn--primary" onClick={onNext}>Next: Level {lr!.n + 1} →</button> : null}
           <button type="button" className={onNext ? "btn" : "btn btn--primary"} autoFocus onClick={onAgain}>{lv && lvPassed ? "Replay for stars" : "One more"} <span className="kbd" aria-hidden="true" style={{ marginLeft: 6 }}>R</span></button>
           {!isGuest ? <button type="button" className="btn" onClick={onMenu}>Modes</button> : null}
+          {canReplay ? <button type="button" className="btn" onClick={() => setReplayOpen(true)}>🎬 Watch replay</button> : null}
         </div>
+        {moment ? (
+          <aside className="form-card moment-offer" aria-label="Save this moment">
+            <p className="eyebrow">{beat === true ? "Proof" : lvStars === 3 ? "Perfect clear" : saved?.newBest ? "New personal best" : "Big moment"}</p>
+            <p><b>{beat === true ? "You beat their score. Send them the replay." : "That run deserves to be seen."}</b> Watch it back as a 30-second highlight, then save it as a video for your Story.</p>
+            <div className="btn-row"><button type="button" className="btn btn--primary btn--sm" onClick={() => setReplayOpen(true)}>🎬 Watch the replay</button><button type="button" className="btn btn--sm" onClick={() => setMoment(false)}>Not now</button></div>
+          </aside>
+        ) : null}
+        {replayOpen ? <ReplayStudio run={replayRun} look={look} onClose={() => setReplayOpen(false)} /> : null}
         {saved ? (
           <ShareResult
             text={shareText({ mode: run.mode, day: run.day, level: lv ? { n: lv.n, name: lv.name, stars: lvStars, passed: lvPassed } : null, twist: run.twist.id === "classic" ? null : run.twist.name, score: result.score, pickups: result.pickups, maxCombo: result.maxCombo, powerUps: result.powerUps, streak: shownStreak, beat, target })}
@@ -289,10 +335,33 @@ function Result({ phase, best, streak, isGuest, challenge, runsThisVisit, onAgai
         ) : null}
         {isGuest && saved ? <GuestClaim runId={run.runId} score={result.score} canRank={run.mode === "daily" && saved.unrankedReason === "guest" && result.score > 0} levelCleared={lv && lvPassed ? lv.n : null} referralCode={challenge?.referralCode ?? null} /> : null}
         {community ? <CommunityPrompt reason={community} /> : null}
+        {pushOffer ? (
+          <aside className="form-card moment-offer" aria-label="Daily reminder">
+            {pushOffer === "ask" ? (
+              <>
+                <p className="eyebrow">Tomorrow&apos;s arena</p>
+                <p><b>{pushStreak >= 1 ? `Keep your 🔥 ${pushStreak}-day streak alive.` : "Come back for tomorrow's arena."}</b> One reminder a day at 7 pm, only if you haven&apos;t played yet. Turn it off anytime.</p>
+                <div className="btn-row">
+                  <button type="button" className="btn btn--primary btn--sm" onClick={async () => { const r = await enablePush(run.day!, isGuest ? localStreak(run.day!) : pushStreak); setPushOffer(r === "on" ? "on" : "denied"); track("push_enabled", { result: r }); }}>🔔 Remind me</button>
+                  <button type="button" className="btn btn--sm" onClick={() => setPushOffer(null)}>Not now</button>
+                  <button type="button" className="btn btn--sm" onClick={() => { markPushAsked(true); setPushOffer(null); }}>Never</button>
+                </div>
+              </>
+            ) : <p className="small" role="status">{pushOffer === "on" ? "🔔 Done. See you tomorrow." : "No problem. You can turn reminders on later from the Play screen."}</p>}
+          </aside>
+        ) : null}
         {runsThisVisit === 1 || runsThisVisit === 3 ? <Feedback runId={run.runId} /> : null}
       </div>
     </div>
   );
+}
+
+function takeMoment(): boolean {
+  try {
+    if (sessionStorage.getItem("om_moment")) return false;
+    sessionStorage.setItem("om_moment", "1");
+    return true;
+  } catch { return false; }
 }
 
 function GuestModeTabs({ mode, setMode }: { mode: Mode; setMode: (m: Mode) => void }) {
@@ -395,7 +464,7 @@ function NameForm({ initial }: { initial: string | null }) {
   );
 }
 
-type BoardData = { scope: "day" | "week"; key: string; players: number; resetsInMs: number; entries: Array<{ rank: number; id: string; name: string; score: number; streak: number; days?: number }>; champions?: Array<{ rank: number; name: string; score: number }> };
+type BoardData = { scope: "day" | "week"; key: string; players: number; resetsInMs: number; entries: Array<{ rank: number; id: string; name: string; score: number; streak: number; days?: number; badge?: string | null; skin?: string | null }>; champions?: Array<{ rank: number; name: string; score: number }> };
 type Standing = { signedIn: boolean; score: number | null; rank: number | null; players: number; id?: string; ahead: { name: string; score: number; gap: number } | null; behind: { name: string; score: number; gap: number } | null };
 const fmt = (n: number) => n.toLocaleString("en-IN");
 function fmtLeft(ms: number) {
@@ -455,7 +524,7 @@ function Leaderboard({ version, signedIn }: { version: number; signedIn: boolean
           <tbody>{data.entries.map((e, i) => (
             <tr key={`${e.id}-${i}`} data-me={e.id === me?.id} data-top={e.rank <= 3 || undefined}>
               <td>{medal(e.rank)}</td>
-              <td>{e.name}{e.id === me?.id ? " (you)" : ""}{e.streak > 1 ? <span className="lb-streak" title={`${e.streak}-day streak`}> 🔥{e.streak}</span> : null}{scope === "week" && e.days ? <span className="lb-days"> {e.days}/7d</span> : null}</td>
+              <td>{e.skin && isSkinId(e.skin) ? <i className="lb-skin" style={{ background: SKINS[e.skin].core }} title={SKINS[e.skin].name} aria-hidden="true" /> : null}{e.name}{e.badge === "founder" ? <span className="lb-founder" title="Founder: backed ONE MORE in its first year"> ★</span> : null}{e.id === me?.id ? " (you)" : ""}{e.streak > 1 ? <span className="lb-streak" title={`${e.streak}-day streak`}> 🔥{e.streak}</span> : null}{scope === "week" && e.days ? <span className="lb-days"> {e.days}/7d</span> : null}</td>
               <td>{fmt(e.score)}</td>
             </tr>
           ))}</tbody>
@@ -475,4 +544,37 @@ function Leaderboard({ version, signedIn }: { version: number; signedIn: boolean
       ) : !signedIn ? <p className="small muted lb-me">Confirm your email after a run to join the leaderboard.</p> : null}
     </section>
   );
+}
+
+/** Daily reminder switch on the Play screen (only where Web Push works: not inside the store apps or iOS Safari tabs). */
+function ReminderToggle() {
+  const [state, setState] = useState<"hidden" | "on" | "off" | "blocked">("hidden");
+  useEffect(() => {
+    let alive = true;
+    const id = requestAnimationFrame(async () => {
+      if (!pushSupported()) return;
+      const sub = await currentSubscription();
+      if (alive) setState(Notification.permission === "denied" ? "blocked" : sub ? "on" : "off");
+    });
+    return () => { alive = false; cancelAnimationFrame(id); };
+  }, []);
+  if (state === "hidden") return null;
+  if (state === "blocked") return <p className="small muted">🔕 Reminders are blocked in your browser settings.</p>;
+  return (
+    <label className="check">
+      <input type="checkbox" checked={state === "on"} onChange={async (e) => {
+        if (e.target.checked) { const r = await enablePush(dayKeyLocal(), 0); setState(r === "on" ? "on" : r === "denied" ? "blocked" : "off"); }
+        else { await disablePush(); setState("off"); }
+      }} />
+      <span>Daily reminder (7 pm, skipped if you&apos;ve played)</span>
+    </label>
+  );
+}
+function dayKeyLocal() { return new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().slice(0, 10); }
+
+/** Vibration on hits, power-ups and big combos (phones and the store apps). Shared with Battle mode. */
+function HapticsToggle() {
+  const [on, setOn] = useState(true);
+  useEffect(() => { const id = requestAnimationFrame(() => setOn(hapticsEnabled())); return () => cancelAnimationFrame(id); }, []);
+  return <label className="check"><input type="checkbox" checked={on} onChange={(e) => { setOn(e.target.checked); setHaptics(e.target.checked); }} /><span>Vibration (phones)</span></label>;
 }

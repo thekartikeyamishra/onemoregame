@@ -2,6 +2,7 @@ import Link from "next/link";
 import { site } from "@/lib/site";
 import { LogoMark } from "./Logo";
 import { SocialIcon } from "./SocialIcon";
+import { StoreBadges } from "./StoreBadges";
 import { STUDIO, socialOrder, socials } from "@/lib/socials";
 
 export function SiteFooter() {
@@ -28,6 +29,7 @@ export function SiteFooter() {
                 </li>
               ))}
             </ul>
+            <StoreBadges />
           </div>
           <nav aria-label="Game">
             <h2>Game</h2>
@@ -56,7 +58,9 @@ export function SiteFooter() {
             <ul>
               <li><Link href="/privacy">Privacy</Link></li>
               <li><Link href="/terms">Terms</Link></li>
+              <li><Link href="/refunds">Refunds</Link></li>
               <li><Link href="/cookies">Cookies</Link></li>
+              <li><Link href="/account">Your account &amp; deletion</Link></li>
               <li><Link href="/editorial-policy">Editorial policy</Link></li>
             </ul>
           </nav>

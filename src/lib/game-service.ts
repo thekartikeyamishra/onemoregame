@@ -9,6 +9,7 @@ import { splitToken } from "./validation";
 import type { Ctx, Signup } from "./early-access";
 import { ENGINE_VERSION, MAX_RUN_TICKS, RUN_TICKS, TPS, TWISTS, WEEKDAY_TWIST, isTwistId, replay, rulesFor, validateInputLog, type InputLog, type Rules, type RunResult, type TwistId } from "@/game/engine";
 import { LEVEL_COUNT, getLevel, starsFor } from "@/game/levels";
+import { isSkinId } from "@/game/cosmetics";
 
 export const SESSION_COOKIE = "om_session";
 export const SESSION_TTL_MS = 30 * 864e5;
@@ -203,8 +204,8 @@ export async function confirmSignIn(ctx: Ctx, token: unknown): Promise<string | 
   if (!parts) return null;
   const now = ctx.now ?? Date.now();
   const signupId = await ctx.store.transaction(async (tx) => {
-    const t = await tx.get<{ signupId: string; tokenHash: string; expiresAt: number; usedAt: number | null }>(C.loginTokens, parts.id);
-    if (!t || t.usedAt || now > t.expiresAt || !safeEqual(sha256(parts.secret), t.tokenHash)) return null;
+    const t = await tx.get<{ signupId: string; purpose?: string; tokenHash: string; expiresAt: number; usedAt: number | null }>(C.loginTokens, parts.id);
+    if (!t || t.purpose || t.usedAt || now > t.expiresAt || !safeEqual(sha256(parts.secret), t.tokenHash)) return null;
     tx.update(C.loginTokens, parts.id, { usedAt: now });
     return t.signupId;
   });
@@ -358,7 +359,7 @@ export async function finishRun(
       streak = currentStreak(next, day);
       tx.set(C.players, signupId, next);
       if (dailyId && !unrankedReason && (!daily || result.score > daily.score)) {
-        writeDailyBest(tx, ctx.store, { day: start.day!, signupId, displayName: next.displayName, score: result.score, prev: daily?.score ?? 0, runId, streak, now, weekly });
+        writeDailyBest(tx, ctx.store, { day: start.day!, signupId, displayName: next.displayName, score: result.score, prev: daily?.score ?? 0, runId, streak, now, weekly, flair: flair(next) });
       }
     }
     let beat: boolean | null = null;
@@ -423,7 +424,7 @@ async function loadChallengePublic(store: Store, id: string) {
  */
 export type BoardScope = "day" | "week";
 export interface WeeklyDoc extends Record<string, unknown> { week: string; signupId: string; displayName: string | null; score: number; days: Record<string, number>; streak: number; updatedAt: number }
-interface BoardRow extends Record<string, unknown> { displayName: string | null; score: number; signupId: string; streak?: number; days?: Record<string, number> }
+interface BoardRow extends Record<string, unknown> { displayName: string | null; score: number; signupId: string; streak?: number; days?: Record<string, number>; badge?: string | null; skin?: string | null }
 type TopRow = { id: string; data: BoardRow };
 const BOARD = { day: { col: C.dailyScores, field: "day" }, week: { col: C.weeklyScores, field: "week" } } as const;
 
@@ -452,16 +453,23 @@ export function invalidateLeaderboard(store: Store, day: string) {
 }
 
 /** Writes a new daily best and updates the weekly total in the same transaction (reads were done by the caller). */
-function writeDailyBest(tx: Tx, store: Store, a: { day: string; signupId: string; displayName: string | null; score: number; prev: number; runId: string; streak: number | null; now: number; weekly: WeeklyDoc | null }) {
+/** Cosmetic flair copied onto leaderboard rows when a score is written (no extra reads when the board is shown). */
+function flair(p: Player): { badge: string | null; skin: string | null } {
+  const skin = (p.equipped as { skin?: unknown } | undefined)?.skin;
+  return { badge: typeof p.badge === "string" ? p.badge : null, skin: typeof skin === "string" && skin !== "classic" ? skin : null };
+}
+
+function writeDailyBest(tx: Tx, store: Store, a: { day: string; signupId: string; displayName: string | null; score: number; prev: number; runId: string; streak: number | null; now: number; weekly: WeeklyDoc | null; flair?: { badge: string | null; skin: string | null } }) {
   const week = weekKey(a.day);
+  const fl = a.flair ?? { badge: null, skin: null };
   tx.set(C.dailyScores, `${a.day}_${a.signupId}`, {
-    day: a.day, week, signupId: a.signupId, displayName: a.displayName, score: a.score, runId: a.runId, streak: a.streak ?? 0,
+    day: a.day, week, signupId: a.signupId, displayName: a.displayName, score: a.score, runId: a.runId, streak: a.streak ?? 0, ...fl,
     updatedAt: a.now, expireAt: new Date(a.now + DAILY_RETENTION_MS),
   });
   const days = { ...(a.weekly?.days ?? {}), [a.day]: a.score };
   const total = Object.values(days).reduce((x, y) => x + y, 0);
   tx.set(C.weeklyScores, `${week}_${a.signupId}`, {
-    week, signupId: a.signupId, displayName: a.displayName, score: total, days, streak: a.streak ?? 0,
+    week, signupId: a.signupId, displayName: a.displayName, score: total, days, streak: a.streak ?? 0, ...fl,
     updatedAt: a.now, expireAt: new Date(a.now + WEEKLY_RETENTION_MS),
   });
   invalidateLeaderboard(store, a.day); // the player sees their own new score immediately on this instance
@@ -492,7 +500,7 @@ export async function board(store: Store, scope: BoardScope, key: string, now = 
   const reset = scope === "day" ? msToReset(now) : msToReset(now) + ((7 - ((new Date(`${dayKey(now)}T00:00:00Z`).getUTCDay() + 6) % 7) - 1) * DAY_MS);
   return {
     scope, key, players: Math.max(players, top.length), resetsInMs: reset, ...(champions ? { champions } : {}),
-    entries: top.map((r, i) => ({ rank: ranks[i], id: r.data.signupId.slice(0, 8), name: r.data.displayName ?? "Anonymous player", score: r.data.score, streak: r.data.streak ?? 0, days: r.data.days ? Object.keys(r.data.days).length : undefined })),
+    entries: top.map((r, i) => ({ rank: ranks[i], id: r.data.signupId.slice(0, 8), name: r.data.displayName ?? "Anonymous player", score: r.data.score, streak: r.data.streak ?? 0, days: r.data.days ? Object.keys(r.data.days).length : undefined, badge: r.data.badge === "founder" ? "founder" : null, skin: isSkinId(r.data.skin) && r.data.skin !== "classic" ? r.data.skin : null })),
   };
 }
 
@@ -558,7 +566,7 @@ export async function claimGuestRun(ctx: Ctx, signupId: string): Promise<number 
     tx.set(C.players, signupId, next);
     tx.update(C.runs, runId, { signupId, claimedAt: now, ranked: !!dailyId && !player?.leaderboardBanned });
     if (dailyId && !player?.leaderboardBanned && (!daily || run.score > daily.score)) {
-      writeDailyBest(tx, ctx.store, { day: today, signupId, displayName: next.displayName, score: run.score, prev: daily?.score ?? 0, runId, streak: currentStreak(next, today), now, weekly });
+      writeDailyBest(tx, ctx.store, { day: today, signupId, displayName: next.displayName, score: run.score, prev: daily?.score ?? 0, runId, streak: currentStreak(next, today), now, weekly, flair: flair(next) });
     }
     return run.score;
   });

@@ -56,7 +56,7 @@ describe("sessions and sign-in", () => {
   it("creates, resolves and ends sessions; rejects forged tokens", async () => {
     const { token } = await createSession({ store, secret, now: T0 }, "abc");
     expect(await resolveSession({ store, secret, now: T0 + 1 }, token)).toMatchObject({ signupId: "abc" });
-    expect(await resolveSession({ store, secret }, token.slice(0, -1) + "x")).toBeNull();
+    expect(await resolveSession({ store, secret }, token.slice(0, -1) + (token.endsWith("x") ? "y" : "x"))).toBeNull();
     expect(await resolveSession({ store, secret, now: T0 + 31 * 864e5 }, token)).toBeNull();
     await endSession({ store, secret, now: T0 + 2 }, token);
     expect(await resolveSession({ store, secret, now: T0 + 3 }, token)).toBeNull();

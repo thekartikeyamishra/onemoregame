@@ -5,11 +5,13 @@ import { TEAMS, type TeamId } from "@/game/battle/config";
 import type { PublicRoom } from "@/lib/battle-types";
 import { socials } from "@/lib/socials";
 import { track } from "@/lib/analytics";
+import { shareContent } from "@/lib/native";
 import { api, getSeat } from "./net";
+import { ReportButton } from "./ReportButton";
 
 interface Line { id: string; name: string; color: string; team: TeamId; bot: boolean; points: number; kos: number; combo: number; abilities: number; attacks: number; caused: number }
 
-export function Results({ room, final, act, code }: { room: PublicRoom; final: boolean; act: (b: Record<string, unknown>) => Promise<boolean>; code: string }) {
+export function Results({ room, final, act, code, onHide = () => undefined }: { room: PublicRoom; final: boolean; act: (b: Record<string, unknown>) => Promise<boolean>; code: string; onHide?: () => void }) {
   const done = room.rounds.filter((r) => r.outcome);
   const lines = useMemo(() => {
     const m = new Map<string, Line>();
@@ -76,7 +78,7 @@ export function Results({ room, final, act, code }: { room: PublicRoom; final: b
           <thead><tr><th scope="col">Player</th><th scope="col">Points</th><th scope="col">KOs taken</th><th scope="col">KOs caused</th><th scope="col">Best combo</th><th scope="col">Abilities</th><th scope="col">Attacks</th></tr></thead>
           <tbody>{lines.map((l) => (
             <tr key={l.id} data-me={l.id === room.you}>
-              <td><i className="dot" style={{ background: l.color }} /> {l.name}</td>
+              <td><i className="dot" style={{ background: l.color }} /> {l.name}{!l.bot && l.id !== room.you && final ? <ReportButton code={code} playerId={l.id} name={l.name} onHidden={onHide} /> : null}</td>
               <td>{l.points.toLocaleString("en-IN")}</td><td>{l.kos}</td><td>{l.caused}</td><td>×{l.combo}</td><td>{l.abilities}</td><td>{l.attacks}</td>
             </tr>
           ))}</tbody>
@@ -106,8 +108,8 @@ function ShareButton({ text, code }: { text: string; code: string }) {
       <button type="button" className="btn" onClick={async () => {
         const url = `${window.location.origin}/b/${code}`;
         track("battle_invite_shared", { via: "result" });
-        if (navigator.share) { try { await navigator.share({ title: "ONE MORE Battle", text, url }); return; } catch { /* cancelled */ } }
-        try { await navigator.clipboard.writeText(`${text} ${url}`); setMsg("Copied!"); } catch { setMsg(url); }
+        const how = await shareContent({ title: "ONE MORE Battle", text, url });
+        if (how === "copied") setMsg("Copied!");
       }}>Share result</button>
       {msg ? <span className="small muted" role="status">{msg}</span> : null}
     </>

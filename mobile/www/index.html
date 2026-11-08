@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0a0f1f">
+<title>ONE MORE</title>
+<style>html,body{margin:0;height:100%;background:#0a0f1f;color:#eef1fa;font:16px system-ui,sans-serif;display:grid;place-items:center}</style>
+</head>
+<body>
+<!-- The app loads https://onemoregame.me (capacitor.config.ts → server.url). This page only shows if that is bypassed. -->
+<p>Loading ONE MORE… <a href="offline.html" style="color:#3ee6f0">Play offline</a></p>
+<script>setTimeout(function(){ location.href = "https://onemoregame.me/play?source=app"; }, 50);</script>
+</body>
+</html>

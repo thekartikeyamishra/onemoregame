@@ -7,6 +7,7 @@ import { LogoMark } from "./Logo";
 
 const links = [
   { href: "/battle", label: "Battle" },
+  { href: "/shop", label: "Shop" },
   { href: "/how-to-play", label: "How to Play" },
   { href: "/guides", label: "Guides" },
   { href: "/campus-clash", label: "Campus Clash" },

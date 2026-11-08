@@ -58,4 +58,6 @@ export const C = {
   battleRooms: "battleRooms",
   battleLanes: "battleLanes",
   battleLaneSegs: "battleLaneSegs",
+  purchases: "purchases",
+  pushSubs: "pushSubs",
 } as const;
