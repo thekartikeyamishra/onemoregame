@@ -3,6 +3,16 @@ export interface ChangelogEntry { date: string; title: string; items: string[] }
 
 export const changelog: ChangelogEntry[] = [
   {
+    date: "2026-11-10",
+    title: "Leaderboard and email fixes",
+    items: [
+      "Leaderboard: your new score appears right after a run instead of up to a minute later, it retries by itself if the network blips, and a Try again button replaces the dead end.",
+      "Fixed a crash on the Play screen when a browser's autofill or password manager sent an empty key press.",
+      "Email: entering an address that's already confirmed now sends a sign-in link, an unconfirmed one gets a fresh confirmation link, and an unknown one gets a note on how to join. No more silent nothing.",
+      "If an email can't be sent, you now see that straight away instead of waiting for a link that will never come. Check Spam and Promotions if it's slow.",
+    ],
+  },
+  {
     date: "2026-11-09",
     title: "Daily reminders",
     items: [

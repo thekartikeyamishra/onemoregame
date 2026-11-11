@@ -131,7 +131,11 @@ export function PlayClient({ player, challenge = null, dailyTwist = null, levels
   useEffect(() => {
     if (phase.kind !== "result") return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key.toLowerCase() === "r" && !(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement)) void start(phase.run.mode, phase.run.level?.n);
+      // `key` can be missing (browser autofill fires synthetic keydown events), and typing in a form must not restart.
+      if (typeof e.key !== "string" || e.key.toLowerCase() !== "r" || e.ctrlKey || e.metaKey || e.altKey || e.repeat) return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement || t instanceof HTMLSelectElement || t.isContentEditable)) return;
+      void start(phase.run.mode, phase.run.level?.n);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -493,12 +497,25 @@ function Leaderboard({ version, signedIn }: { version: number; signedIn: boolean
   const [data, setData] = useState<BoardData | null>(null);
   const [me, setMe] = useState<Standing | null>(null);
   const [failed, setFailed] = useState(false);
+  const [retry, setRetry] = useState(0);
   useEffect(() => {
     let live = true;
-    fetch(`/api/game/leaderboard?scope=${scope}`).then((r) => (r.ok ? r.json() : Promise.reject())).then((d: BoardData) => { if (live) { setData(d); setFailed(false); } }).catch(() => live && setFailed(true));
-    if (signedIn) fetch(`/api/game/leaderboard/me?scope=${scope}`, { cache: "no-store" }).then((r) => (r.ok ? r.json() : null)).then((d: Standing | null) => { if (live) setMe(d); }).catch(() => undefined);
+    // After a run (version > 0) or a manual retry, skip the shared CDN copy so the new score shows at once.
+    const fresh = version > 0 || retry > 0;
+    const url = `/api/game/leaderboard?scope=${scope}${fresh ? `&v=${version}.${retry}.${Date.now() % 1e6}` : ""}`;
+    const load = (attempt: number): Promise<void> =>
+      fetch(url, fresh ? { cache: "no-store" } : undefined)
+        .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+        .then((d: BoardData) => {
+          if (!live) return;
+          if (!d || !Array.isArray(d.entries)) throw new Error("bad board");
+          setData(d); setFailed(false);
+        })
+        .catch(() => (attempt < 2 && live ? new Promise<void>((ok) => setTimeout(ok, 800 * (attempt + 1))).then(() => load(attempt + 1)) : live ? setFailed(true) : undefined));
+    void load(0);
+    if (signedIn) fetch(`/api/game/leaderboard/me?scope=${scope}`, { cache: "no-store" }).then((r) => (r.ok ? r.json() : null)).then((d: Standing | null) => { if (live && d && typeof d.signedIn === "boolean") setMe(d); }).catch(() => undefined);
     return () => { live = false; };
-  }, [version, scope, signedIn]);
+  }, [version, scope, signedIn, retry]);
   const medal = (rank: number) => (rank === 1 ? "🥇" : rank === 2 ? "🥈" : rank === 3 ? "🥉" : rank);
   const inTop = !!me?.id && !!data?.entries.some((e) => e.id === me.id);
   return (
@@ -506,15 +523,15 @@ function Leaderboard({ version, signedIn }: { version: number; signedIn: boolean
       <div className="lb-head">
         <h2 id="lb-h" style={{ fontSize: "var(--step-1)", margin: 0 }}>Leaderboard</h2>
         <div className="mode-tabs" role="group" aria-label="Leaderboard period">
-          <button type="button" className="btn btn--sm" aria-pressed={scope === "day"} onClick={() => setScope("day")}>Today</button>
-          <button type="button" className="btn btn--sm" aria-pressed={scope === "week"} onClick={() => setScope("week")}>This week</button>
+          <button type="button" className="btn btn--sm" aria-pressed={scope === "day"} onClick={() => { setScope("day"); setData(null); }}>Today</button>
+          <button type="button" className="btn btn--sm" aria-pressed={scope === "week"} onClick={() => { setScope("week"); setData(null); }}>This week</button>
         </div>
       </div>
       <p className="small muted" style={{ margin: ".25rem 0 .75rem" }}>
         {scope === "day" ? "Best Daily Arena run today." : "Your best Daily score each day, added up (Mon–Sun). Play every day to climb."}
         {data ? ` ${fmt(data.players)} player${data.players === 1 ? "" : "s"} · resets in ${fmtLeft(data.resetsInMs)}.` : ""}
       </p>
-      {failed ? <p className="small muted">Leaderboard unavailable right now.</p> : !data ? (
+      {failed && !data ? <p className="small muted" role="alert">Leaderboard unavailable right now. <button type="button" className="btn btn--sm" onClick={() => setRetry((n) => n + 1)}>Try again</button></p> : !data ? (
         <div aria-busy="true" aria-label="Loading leaderboard">{[0, 1, 2, 3, 4].map((i) => <div key={i} className="skeleton skeleton-row" />)}</div>
       ) : data.entries.length === 0 ? (
         <p className="small muted">No scores yet {scope === "day" ? "today" : "this week"}. Set the first one.</p>
@@ -541,7 +558,7 @@ function Leaderboard({ version, signedIn }: { version: number; signedIn: boolean
             {me.behind ? <p className="small muted">⬇ {me.behind.name} is {fmt(me.behind.gap)} behind you.</p> : null}
           </div>
         ) : <p className="small muted lb-me">Play today&apos;s Daily Arena to get on the board.</p>
-      ) : !signedIn ? <p className="small muted lb-me">Confirm your email after a run to join the leaderboard.</p> : null}
+      ) : !signedIn ? <p className="small muted lb-me">Guest scores aren&apos;t ranked. Play a Daily run, then confirm your email (or <a href="/play/sign-in">sign in</a>) to put it on the board.</p> : null}
     </section>
   );
 }

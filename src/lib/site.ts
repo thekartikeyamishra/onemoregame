@@ -6,6 +6,16 @@ function clean(v: string | undefined): string {
 
 export const ADSENSE_CLIENT = "ca-pub-4557897331416844";
 
+/**
+ * Accepts the publisher ID in any form AdSense shows it ("pub-123…", "ca-pub-123…", quoted, with spaces) and returns
+ * "ca-pub-123…". Anything invalid or empty falls back to ADSENSE_CLIENT, so a typo in the environment can never
+ * remove the verification tag or make /ads.txt disappear.
+ */
+export function normalizeAdsenseClient(raw: string | undefined): string {
+  const m = (raw ?? "").replace(/["'\s]/g, "").match(/^(?:ca-)?pub-(\d{10,20})$/i);
+  return m ? `ca-pub-${m[1]}` : ADSENSE_CLIENT;
+}
+
 export function safeHttpsUrl(raw: string | undefined, allowedHosts?: string[]): string | null {
   const v = clean(raw);
   if (!v) return null;
@@ -38,9 +48,7 @@ export const site = {
   },
   ads: {
     /** AdSense publisher ID: used for site verification (meta tag + /ads.txt) even while ad units are switched off. */
-    client: /^ca-pub-\d{10,20}$/.test(clean(process.env.NEXT_PUBLIC_ADSENSE_CLIENT) || ADSENSE_CLIENT)
-      ? clean(process.env.NEXT_PUBLIC_ADSENSE_CLIENT) || ADSENSE_CLIENT
-      : null,
+    client: normalizeAdsenseClient(process.env.NEXT_PUBLIC_ADSENSE_CLIENT),
     get enabled() {
       return clean(process.env.NEXT_PUBLIC_ADS_ENABLED) === "true" && this.client !== null;
     },

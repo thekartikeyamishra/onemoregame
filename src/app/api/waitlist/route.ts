@@ -41,7 +41,13 @@ export async function POST(req: Request) {
     if (!(await allow(ctx, limits.waitlistPerIp, req.headers))) {
       return NextResponse.json({ error: "Too many requests. Please wait a while and try again." }, { status: 429, headers: { ...noStore, "Retry-After": "3600" } });
     }
-    await requestAccess(ctx, parsed.data);
+    const r = await requestAccess(ctx, parsed.data);
+    // A real delivery failure is our problem, not the user's: say so instead of "check your inbox" for an email that
+    // never left. (Same wording for every address, so this reveals nothing about who has an account.)
+    if (!r.emailAccepted && (r.outcome === "created" || r.outcome === "resent" || r.outcome === "signin")) {
+      return NextResponse.json({ error: "We couldn't send the email right now. Please try again in a few minutes." }, { status: 503, headers: noStore });
+    }
+    if (r.outcome === "cooldown" || r.outcome === "noop") return NextResponse.json({ ok: true, recent: true }, { status: 202, headers: noStore });
     return accepted(); // identical response for new, existing and verified addresses (no enumeration)
   } catch (e) {
     if (e instanceof AlreadyExistsError) return accepted(); // concurrent duplicate submit

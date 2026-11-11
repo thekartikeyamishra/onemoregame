@@ -47,10 +47,17 @@ class ResendMailer implements Mailer {
         }),
         signal: AbortSignal.timeout(10_000),
       });
-      if (!res.ok) return { ok: false, error: `provider_status_${res.status}` };
+      if (!res.ok) {
+        // Keep the provider's reason (e.g. "The onemoregame.me domain is not verified") so it shows in the logs.
+        const why = ((await res.json().catch(() => null)) as { message?: string; name?: string } | null);
+        const error = `provider_status_${res.status}${why?.message ? `: ${String(why.message).slice(0, 200)}` : ""}`;
+        console.error(`[mail] send failed (${res.status}) ${why?.name ?? ""} ${why?.message ?? ""}`.trim());
+        return { ok: false, error };
+      }
       const body = (await res.json().catch(() => ({}))) as { id?: string };
       return { ok: true, providerId: body.id ?? null };
-    } catch {
+    } catch (e) {
+      console.error("[mail] provider unreachable", e instanceof Error ? e.message : e);
       return { ok: false, error: "provider_unreachable" };
     }
   }
@@ -58,6 +65,7 @@ class ResendMailer implements Mailer {
 
 class UnconfiguredMailer implements Mailer {
   async send(): Promise<SendResult> {
+    console.error("[mail] not configured: set RESEND_API_KEY and MAIL_FROM (and verify the sending domain in Resend)");
     return { ok: false, error: "mailer_not_configured" };
   }
 }

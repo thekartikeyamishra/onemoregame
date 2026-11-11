@@ -307,6 +307,8 @@ export function GameCanvas({ seed, twist = "classic", rules = null, level = null
     const onUp = (e: PointerEvent) => { stick.up(e); if (e.pointerType !== "mouse") pointer = null; };
     const onLeave = (e: PointerEvent) => { if (e.pointerType === "mouse") pointer = null; };
     const onKey = (e: KeyboardEvent) => {
+      // Autofill and some IMEs/extensions fire keyboard events with no `key`: ignore them.
+      if (typeof e.key !== "string" || !e.key) return;
       const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
       if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", " "].includes(e.key)) e.preventDefault();
       if (e.type === "keydown") {

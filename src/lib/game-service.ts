@@ -1,7 +1,7 @@
 import { randomInt } from "node:crypto";
 import { TtlCache } from "./ttl-cache";
 import { hmac, randomCode, randomToken, safeEqual, sha256 } from "./crypto";
-import { signInEmail } from "./emails";
+import { noAccountEmail, signInEmail } from "./emails";
 import { getMailer } from "./mailer";
 import { site } from "./site";
 import { C, type Store, type Tx } from "./store/types";
@@ -185,18 +185,39 @@ export async function endSession(ctx: Ctx, token: string | undefined | null) {
   if (sess) { sessionCache(ctx.store).delete(sess.sessionId); await ctx.store.delete(C.sessions, sess.sessionId); }
 }
 
-/** Email a sign-in link to an accepted playtester. Always resolves silently (no enumeration). */
-export async function requestSignIn(ctx: Ctx, email: string): Promise<void> {
+export type SignInOutcome = "sent" | "cooldown" | "failed";
+
+/**
+ * Email a link for this address, whatever its state, so nobody is left waiting for an email that never comes:
+ * confirmed → a sign-in link; new or unconfirmed → a confirmation link (confirming also signs in).
+ * The response never reveals whether an account exists (same wording either way).
+ */
+export async function requestSignIn(ctx: Ctx, email: string): Promise<SignInOutcome> {
   const now = ctx.now ?? Date.now();
   const signupId = hmac(ctx.secret, `email:${email}`).slice(0, 40);
   const s = await ctx.store.get<Signup>(C.signups, signupId);
-  if (!s || s.status !== "verified") return;
+  if (s && s.status !== "verified") {
+    // Signed up but never confirmed: send the confirmation link again (confirming also signs in).
+    const { requestAccess } = await import("./early-access");
+    const r = await requestAccess(ctx, { email, audience: s.audience, updatesConsent: s.updatesConsent, ageConfirmed: true, website: "", source: "sign-in" });
+    return r.outcome === "cooldown" || r.outcome === "noop" ? "cooldown" : r.emailAccepted ? "sent" : "failed";
+  }
+  if (!s) {
+    // No account: say so by email (the page shows the same message either way, so nobody can probe addresses).
+    // Sign-up stays on the sign-up form, where the 18+ confirmation is required.
+    const recent = await ctx.store.get<{ at: number }>(C.mailOutbox, `noacct_${signupId}`);
+    if (recent && now - recent.at < 10 * 60_000) return "cooldown";
+    const r = await getMailer().send({ to: email, ...noAccountEmail(`${site.url}/early-access?email=${encodeURIComponent(email)}#request`), idempotencyKey: `noacct_${signupId}_${Math.floor(now / 600_000)}` });
+    await ctx.store.transaction(async (tx) => { tx.set(C.mailOutbox, `noacct_${signupId}`, { kind: "no-account", status: r.ok ? "sent" : "failed", at: now, expireAt: new Date(now + 864e5) }); });
+    return r.ok ? "sent" : "failed";
+  }
   const id = randomToken(12), secret = randomToken(24);
   await ctx.store.transaction(async (tx) => {
     tx.create(C.loginTokens, id, { signupId, tokenHash: sha256(secret), expiresAt: now + LOGIN_TTL_MS, usedAt: null, expireAt: new Date(now + LOGIN_TTL_MS + 3600e3) });
   });
   const mail = signInEmail(`${site.url}/play/sign-in/confirm?token=${id}.${secret}`);
-  await getMailer().send({ to: s.email, ...mail, idempotencyKey: `login_${id}` });
+  const r = await getMailer().send({ to: s.email, ...mail, idempotencyKey: `login_${id}` });
+  return r.ok ? "sent" : "failed";
 }
 
 export async function confirmSignIn(ctx: Ctx, token: unknown): Promise<string | null> {

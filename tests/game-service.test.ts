@@ -65,9 +65,15 @@ describe("sessions and sign-in", () => {
   it("emails sign-in links only to accepted playtesters, single use", async () => {
     await invitedPlayer();
     sent = [];
-    await requestSignIn({ store, secret, now: T0 }, "stranger@example.com");
-    expect(sent).toHaveLength(0);
-    await requestSignIn({ store, secret, now: T0 }, "p@example.com");
+    // A stranger gets a "no account yet" email pointing to early access, never a sign-in link (and only once per 10 min).
+    expect(await requestSignIn({ store, secret, now: T0 }, "stranger@example.com")).toBe("sent");
+    expect(sent).toHaveLength(1);
+    expect(JSON.stringify(sent[0])).toContain("/early-access");
+    expect(JSON.stringify(sent[0])).not.toContain("/play/sign-in/confirm");
+    await requestSignIn({ store, secret, now: T0 + 1000 }, "stranger@example.com");
+    expect(sent).toHaveLength(1);
+    sent = [];
+    expect(await requestSignIn({ store, secret, now: T0 }, "p@example.com")).toBe("sent");
     expect(sent).toHaveLength(1);
     const token = link(sent[0], "/play/sign-in/confirm");
     expect(await confirmSignIn({ store, secret, now: T0 + 1000 }, token)).toBe(signupIdFor(secret, "p@example.com"));

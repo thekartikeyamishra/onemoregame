@@ -75,7 +75,7 @@ async function deliver(ctx: Ctx, key: string, kind: string, signupId: string, ms
       signupId,
       status: result.ok ? "sent" : "failed",
       providerId: result.ok ? result.providerId : null,
-      error: result.ok ? null : result.error,
+      error: result.ok ? null : result.error.slice(0, 240),
       attempts: (prev?.attempts ?? 0) + 1,
       updatedAt: now,
       expireAt: new Date(now + OUTBOX_RETENTION_MS),
@@ -84,7 +84,7 @@ async function deliver(ctx: Ctx, key: string, kind: string, signupId: string, ms
   return result.ok;
 }
 
-export type RequestOutcome = "created" | "resent" | "noop";
+export type RequestOutcome = "created" | "resent" | "noop" | "signin" | "cooldown";
 
 export async function requestAccess(ctx: Ctx, input: WaitlistInput): Promise<{ outcome: RequestOutcome; emailAccepted: boolean }> {
   const now = ctx.now ?? Date.now();
@@ -126,9 +126,10 @@ export async function requestAccess(ctx: Ctx, input: WaitlistInput): Promise<{ o
       if (input.updatesConsent && !cur.updatesConsent) {
         tx.update(C.signups, id, { updatesConsent: true, unsubscribed: false, consentChangedAt: now });
       }
-      return "noop";
+      return "signin"; // already confirmed: email a sign-in link instead of nothing
     }
-    if (now - cur.lastVerifySentAt < RESEND_COOLDOWN_MS || cur.verifySends >= MAX_VERIFY_SENDS) return "noop";
+    if (now - cur.lastVerifySentAt < RESEND_COOLDOWN_MS) return "cooldown";
+    if (cur.verifySends >= MAX_VERIFY_SENDS) return "noop";
     tx.update(C.signups, id, {
       verifyTokenHash: sha256(secret),
       verifyExpiresAt: now + VERIFY_TTL_MS,
@@ -141,7 +142,11 @@ export async function requestAccess(ctx: Ctx, input: WaitlistInput): Promise<{ o
     return "resent";
   });
 
-  if (outcome === "noop") return { outcome, emailAccepted: false };
+  if (outcome === "signin") {
+    const { requestSignIn } = await import("./game-service");
+    return { outcome, emailAccepted: (await requestSignIn(ctx, input.email)) === "sent" };
+  }
+  if (outcome === "noop" || outcome === "cooldown") return { outcome, emailAccepted: false };
   const sends = outcome === "created" ? 1 : (await ctx.store.get<Signup>(C.signups, id))!.verifySends;
   const link = `${site.url}/verify?token=${id}.${secret}`;
   const mail = verificationEmail(link, unsubscribeUrl(ctx.secret, id));

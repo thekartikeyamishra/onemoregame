@@ -18,7 +18,7 @@ export function BattleHelp({ role = "rules", live = false }: { role?: "defend" |
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (typeof e.key !== "string" || e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) return;
       if (e.key === "Escape" && open) { setOpen(false); buttonRef.current?.focus(); }
       else if ((e.key === "?" || e.key === "h" || e.key === "H") && !e.ctrlKey && !e.metaKey) { setTab(role === "rules" ? "rules" : role); setOpen((v) => !v); }
     };

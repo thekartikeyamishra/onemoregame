@@ -89,14 +89,23 @@ export function UnsubscribeForm({ token }: { token: string }) {
 
 export function SignInForm() {
   const [state, action, pending] = useActionState<SignInState, FormData>(requestSignInAction, { status: "idle" });
-  if (state.status === "sent") {
-    return <div className="notice notice--ok" role="status"><strong>Check your inbox</strong>If this address has been confirmed, a sign-in link is on its way. It works once and expires in 15 minutes. Not confirmed yet? <Link href="/early-access#request">Get a confirmation email</Link>.</div>;
+  if (state.status === "sent" || state.status === "recent") {
+    return (
+      <div className="notice notice--ok" role="status">
+        <strong>{state.status === "sent" ? "Check your inbox" : "A link is already on its way"}</strong>
+        {state.status === "sent"
+          ? "We've emailed you a link: a sign-in link (works once, 15 minutes), a confirmation link if you haven't confirmed yet, or a link to create your account if you're new. "
+          : "We sent a link to this address in the last few minutes, so we didn't send another. "}
+        Not there in 2 minutes? Check <b>Spam</b> and <b>Promotions</b>, and search your mail for &ldquo;ONE MORE&rdquo;.
+      </div>
+    );
   }
   return (
     <form action={action}>
       {state.status === "invalid" && <div className="notice notice--err" role="alert"><strong>Check the address</strong>Enter the email you confirmed.</div>}
       {state.status === "limited" && <div className="notice notice--err" role="alert"><strong>Too many attempts</strong>{retry}</div>}
       {state.status === "error" && <div className="notice notice--err" role="alert"><strong>Something went wrong</strong>{retry}</div>}
+      {state.status === "mailfail" && <div className="notice notice--err" role="alert"><strong>We couldn&apos;t send the email</strong>Our email service didn&apos;t accept it. Please try again in a few minutes. If it keeps happening, <Link href="/contact">tell us</Link>.</div>}
       <div className="field">
         <label htmlFor="signin-email">Email address</label>
         <input id="signin-email" name="email" type="email" className="input" autoComplete="email" required maxLength={254} />

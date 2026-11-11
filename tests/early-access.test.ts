@@ -39,7 +39,7 @@ describe("requestAccess", () => {
   it("does not resend within the cooldown and does not create duplicates", async () => {
     await requestAccess({ store, secret, now: T0 }, input());
     const r = await requestAccess({ store, secret, now: T0 + 1000 }, input());
-    expect(r.outcome).toBe("noop");
+    expect(r.outcome).toBe("cooldown");
     expect(sent).toHaveLength(1);
     expect(await store.count(C.signups, [])).toBe(1);
     const r2 = await requestAccess({ store, secret, now: T0 + RESEND_COOLDOWN_MS + 1 }, input());
@@ -186,5 +186,33 @@ describe("unsubscribe, deletion, metrics, campus", () => {
     }, null);
     const lead = await store.get(C.campusLeads, id);
     expect(lead).not.toHaveProperty("website");
+  });
+});
+
+describe("email dead ends (no silent no-ops)", () => {
+  it("re-entering an already confirmed email sends a sign-in link instead of nothing", async () => {
+    await requestAccess({ store, secret, now: T0 }, input());
+    await verifyEmail({ store, secret, now: T0 + 1 }, tokenFrom(sent[0], "/verify"));
+    sent = [];
+    const r = await requestAccess({ store, secret, now: T0 + RESEND_COOLDOWN_MS + 10 }, input());
+    expect(r.outcome).toBe("signin");
+    expect(r.emailAccepted).toBe(true);
+    expect(sent).toHaveLength(1);
+    expect(sent[0].text).toContain("/play/sign-in/confirm");
+  });
+
+  it("signing in with a pending (unconfirmed) email resends the confirmation link", async () => {
+    const { requestSignIn } = await import("@/lib/game-service");
+    await requestAccess({ store, secret, now: T0 }, input());
+    sent = [];
+    expect(await requestSignIn({ store, secret, now: T0 + RESEND_COOLDOWN_MS + 10 }, "player@example.com")).toBe("sent");
+    expect(sent).toHaveLength(1);
+    expect(sent[0].text).toContain("/verify?token=");
+  });
+
+  it("reports a provider failure instead of pretending the email went out", async () => {
+    setMailerForTests({ send: async () => ({ ok: false, error: "provider_status_403: domain not verified" }) });
+    const r = await requestAccess({ store, secret, now: T0 }, input());
+    expect(r.emailAccepted).toBe(false);
   });
 });

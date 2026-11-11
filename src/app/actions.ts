@@ -62,7 +62,7 @@ export async function unsubscribeAction(_prev: UnsubState, form: FormData): Prom
   }
 }
 
-export type SignInState = { status: "idle" | "sent" | "invalid" | "limited" | "error" };
+export type SignInState = { status: "idle" | "sent" | "recent" | "mailfail" | "invalid" | "limited" | "error" };
 
 export async function requestSignInAction(_prev: SignInState, form: FormData): Promise<SignInState> {
   const email = emailSchema.safeParse(form.get("email"));
@@ -70,8 +70,9 @@ export async function requestSignInAction(_prev: SignInState, form: FormData): P
   try {
     const ctx = await serverCtx();
     if (!(await allow(ctx, limits.signInPerIp))) return { status: "limited" };
-    await requestSignIn(ctx, email.data);
-    return { status: "sent" }; // same response whether or not the address has playtest access
+    const r = await requestSignIn(ctx, email.data);
+    // Same wording whether or not the address has an account (no enumeration); only delivery problems differ.
+    return { status: r === "sent" ? "sent" : r === "cooldown" ? "recent" : "mailfail" };
   } catch (e) {
     logError("sign-in", e);
     return { status: "error" };

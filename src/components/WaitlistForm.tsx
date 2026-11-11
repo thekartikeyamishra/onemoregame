@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useId, useRef, useState } from "react";
 import { track } from "@/lib/analytics";
 
-type State = { kind: "idle" } | { kind: "submitting" } | { kind: "done" } | { kind: "error"; message: string; field?: "email" | "age" };
+type State = { kind: "idle" } | { kind: "submitting" } | { kind: "done"; recent?: boolean } | { kind: "error"; message: string; field?: "email" | "age" };
 
 export function WaitlistForm({ claimRunId = null, referralCode = null, compact = false }: { claimRunId?: string | null; referralCode?: string | null; compact?: boolean } = {}) {
   const id = useId();
@@ -16,7 +16,9 @@ export function WaitlistForm({ claimRunId = null, referralCode = null, compact =
   useEffect(() => {
     const p = new URLSearchParams(window.location.search);
     meta.current = { ref: referralCode ?? p.get("ref"), source: claimRunId ? "guest-run" : p.get("utm_source") };
-  }, [referralCode, claimRunId]);
+    const pre = p.get("email");
+    if (pre && pre.length <= 254) { const el = document.getElementById(`${id}-email`) as HTMLInputElement | null; if (el && !el.value) el.value = pre; }
+  }, [referralCode, claimRunId, id]);
 
   useEffect(() => {
     if (state.kind === "done" || state.kind === "error") statusRef.current?.focus();
@@ -52,7 +54,8 @@ export function WaitlistForm({ claimRunId = null, referralCode = null, compact =
         }),
       });
       if (res.status === 202) {
-        setState({ kind: "done" });
+        const b = (await res.json().catch(() => ({}))) as { recent?: boolean };
+        setState({ kind: "done", recent: !!b.recent });
         track("waitlist_submit_succeeded");
         return;
       }
@@ -68,8 +71,8 @@ export function WaitlistForm({ claimRunId = null, referralCode = null, compact =
       <div className="notice notice--ok" role="status" tabIndex={-1} ref={statusRef}>
         <strong>Check your inbox</strong>
         <p style={{ margin: 0 }}>
-          {claimRunId ? "Open the confirmation link (valid 48 hours) and this run is saved to your profile. " : "If this address can receive email, a confirmation link is on its way. It expires in 48 hours. "}
-          Nothing after 15 minutes? Check spam or promotions, then try again.
+          {state.recent ? "We already sent a link to this address in the last few minutes, so we didn't send another. " : claimRunId ? "Open the link in the email (valid 48 hours) and this run is saved to your profile. " : "A link is on its way: a confirmation link for new accounts, or a sign-in link if you've already confirmed. "}
+          It comes from ONE MORE (no-reply). Not there in 2 minutes? Check <b>Spam</b> and <b>Promotions</b>, and search your mail for &ldquo;ONE MORE&rdquo;.
         </p>
       </div>
     );

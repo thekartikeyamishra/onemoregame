@@ -83,3 +83,15 @@ If you didn't ask for this, ignore this email and nothing will change.`;
   const html = layout("Delete your account?", `<p style="line-height:1.6">This permanently deletes your account, scores, streaks, level progress and challenges. The link expires in 60 minutes.</p>${button(link, "Review and delete")}`, "If you didn't ask for this, ignore this email and nothing will change.");
   return { subject, text, html };
 }
+
+/** Someone asked for a sign-in link for an address with no account: point them to sign-up instead of silence. */
+export function noAccountEmail(link: string) {
+  const subject = "Create your ONE MORE account";
+  const text = `Someone (hopefully you) asked to sign in to ONE MORE with this email, but there's no account for it yet.
+Create one in a few seconds (free, no password):
+${link}
+
+If you didn't ask for this, you can ignore this email.`;
+  const html = layout("No account yet", `<p style="line-height:1.6">There's no ONE MORE account for this email yet. Creating one takes a few seconds: free, no password.</p>${button(link, "Create my account")}`, "If you didn't ask for this, you can ignore this email.");
+  return { subject, text, html };
+}

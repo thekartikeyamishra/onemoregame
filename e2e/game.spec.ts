@@ -33,6 +33,19 @@ async function becomePlaytester(page: Page, email: string) {
   await expect(page).toHaveURL(/\/play$/);
 }
 
+test("autofill-style key events without a key don't crash the Play screen; fresh leaderboard is never cached", async ({ page, request }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await page.goto("/play");
+  await expect(page.getByRole("heading", { name: "Leaderboard" })).toBeVisible();
+  await page.evaluate(() => { window.dispatchEvent(new Event("keydown")); document.dispatchEvent(new Event("keydown", { bubbles: true })); });
+  await page.waitForTimeout(200);
+  expect(errors).toEqual([]);
+  const fresh = await request.get("/api/game/leaderboard?scope=day&v=1");
+  expect(fresh.status()).toBe(200);
+  expect(fresh.headers()["cache-control"]).toContain("no-store");
+});
+
 test("guests can start today's Daily Arena but not Quick Play", async ({ page, request }) => {
   await page.goto("/play");
   await expect(page.getByRole("heading", { name: "Today's arena" })).toBeVisible();

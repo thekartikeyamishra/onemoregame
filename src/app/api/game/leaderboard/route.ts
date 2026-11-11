@@ -10,13 +10,16 @@ export const dynamic = "force-dynamic";
  * Personal standing is a separate, private endpoint (/api/game/leaderboard/me).
  */
 export async function GET(req: Request) {
-  const scope = new URL(req.url).searchParams.get("scope") === "week" ? "week" : "day";
+  const params = new URL(req.url).searchParams;
+  const scope = params.get("scope") === "week" ? "week" : "day";
+  // A cache-busted request (?v=…, sent right after a run) is answered fresh and never stored, so it can't flood the CDN.
+  const fresh = params.has("v");
   try {
     const ctx = await serverCtx();
     const day = dayKey();
     const data = await board(ctx.store, scope, scope === "week" ? weekKey(day) : day);
     // Browsers always revalidate (so a player sees their new score right after a run); only the CDN caches.
-    return json(data, 200, { "Cache-Control": "public, max-age=0, must-revalidate", "CDN-Cache-Control": "max-age=15, stale-while-revalidate=60" });
+    return json(data, 200, fresh ? { "Cache-Control": "private, no-store" } : { "Cache-Control": "public, max-age=0, must-revalidate", "CDN-Cache-Control": "max-age=15, stale-while-revalidate=60" });
   } catch (e) {
     logError("leaderboard", e);
     return json({ error: "Leaderboard unavailable." }, 503);
